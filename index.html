@@ -3,75 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台股做空訊號監控系統</title>
+    <title>台股做空訊號評分系統</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
         body {
-            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: 'Microsoft JhengHei', sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
             color: #eee;
             min-height: 100vh;
-            padding: 20px;
+            padding: 15px;
         }
-        
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { max-width: 1600px; margin: 0 auto; }
         
         header {
             text-align: center;
             padding: 20px;
-            background: rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.03);
             border-radius: 15px;
             margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
         }
-        
         header h1 {
-            font-size: 2em;
-            background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb);
+            font-size: 1.8em;
+            background: linear-gradient(90deg, #ff416c, #ff4b2b, #f7971e);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
         }
+        .subtitle { color: #888; margin-top: 8px; }
         
-        .update-time { color: #888; font-size: 0.9em; }
-        
-        .loading-screen {
+        /* 建議大框 */
+        .recommendation-box {
+            background: linear-gradient(135deg, rgba(255,65,108,0.15), rgba(255,75,43,0.15));
+            border: 2px solid;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
             text-align: center;
-            padding: 100px 20px;
+        }
+        .rec-title { font-size: 1.3em; margin-bottom: 15px; }
+        .rec-action {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        .rec-detail { font-size: 1.1em; color: #ccc; line-height: 1.8; }
+        .rec-wait { border-color: #666; }
+        .rec-watch { border-color: #feca57; }
+        .rec-prepare { border-color: #ff9f43; }
+        .rec-trial { border-color: #ff6b6b; }
+        .rec-build { border-color: #ee5a24; }
+        .rec-add { border-color: #eb2f06; }
+        .rec-heavy { border-color: #ff0000; animation: glow 1.5s infinite; }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(255,0,0,0.3); }
+            50% { box-shadow: 0 0 40px rgba(255,0,0,0.6); }
         }
         
-        .loading-spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid #333;
-            border-top-color: #48dbfb;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+        /* 總分顯示 */
+        .score-display {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            margin: 25px 0;
         }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .loading-text { color: #888; font-size: 1.1em; }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-        
-        .card {
+        .score-item {
+            text-align: center;
+            padding: 20px 30px;
             background: rgba(255,255,255,0.05);
             border-radius: 15px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
+            min-width: 150px;
         }
+        .score-value {
+            font-size: 3em;
+            font-weight: bold;
+        }
+        .score-label { color: #888; margin-top: 5px; }
         
+        /* 勝率儀表 */
+        .winrate-meter {
+            width: 200px;
+            height: 200px;
+            margin: 20px auto;
+            position: relative;
+        }
+        .meter-bg {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(
+                #26de81 0deg,
+                #feca57 120deg,
+                #ff6b6b 240deg,
+                #ff0000 360deg
+            );
+            opacity: 0.3;
+        }
+        .meter-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .meter-value .rate { font-size: 2.5em; font-weight: bold; }
+        .meter-value .label { color: #888; }
+        
+        /* Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .grid-2 { grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); }
+        
+        .card {
+            background: rgba(255,255,255,0.03);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
         .card-title {
             font-size: 1.1em;
             color: #48dbfb;
@@ -80,760 +130,848 @@
             border-bottom: 1px solid rgba(255,255,255,0.1);
         }
         
-        .price-display { text-align: center; padding: 20px; }
-        .price-main { font-size: 2.5em; font-weight: bold; }
-        .price-change { font-size: 1.2em; margin-top: 5px; }
-        .price-up { color: #ff6b6b; }
-        .price-down { color: #26de81; }
-        
-        .indicator-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+        /* 指標項目 */
+        .indicator-group { margin-bottom: 20px; }
+        .indicator-group-title {
+            font-size: 0.9em;
+            color: #888;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
-        .indicator-label { color: #aaa; }
-        .indicator-value { font-weight: bold; }
-        
-        .heat-score { text-align: center; padding: 30px; }
-        .heat-score .score { font-size: 4em; font-weight: bold; }
-        .heat-score .max { font-size: 1.5em; color: #666; }
-        
-        .heat-level {
-            margin-top: 15px;
-            padding: 10px 20px;
-            border-radius: 20px;
-            display: inline-block;
-            font-weight: bold;
-        }
-        
-        .heat-low { background: #26de81; color: #000; }
-        .heat-medium { background: #feca57; color: #000; }
-        .heat-high { background: #ff6b6b; color: #fff; }
-        .heat-extreme { background: #ff0000; color: #fff; animation: pulse 1s infinite; }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        .heat-item {
+        .indicator-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px;
-            margin: 5px 0;
+            padding: 10px 12px;
+            margin: 6px 0;
+            background: rgba(255,255,255,0.02);
+            border-radius: 8px;
+            border-left: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .indicator-item.triggered {
+            background: rgba(255,107,107,0.15);
+            border-left-color: #ff6b6b;
+        }
+        .indicator-item.triggered .ind-status { color: #ff6b6b; }
+        
+        .ind-name { flex: 1; }
+        .ind-value { 
+            min-width: 80px; 
+            text-align: right; 
+            font-family: monospace;
+            font-size: 0.95em;
+        }
+        .ind-weight {
+            min-width: 40px;
+            text-align: center;
+            font-size: 0.8em;
+            color: #666;
+        }
+        .ind-status {
+            min-width: 30px;
+            text-align: center;
+            font-size: 1.2em;
+        }
+        
+        /* 分數條 */
+        .score-bar {
+            height: 12px;
+            background: #222;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .score-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.5s;
+        }
+        .score-fill.low { background: linear-gradient(90deg, #26de81, #20bf6b); }
+        .score-fill.medium { background: linear-gradient(90deg, #feca57, #ff9f43); }
+        .score-fill.high { background: linear-gradient(90deg, #ff6b6b, #ee5a24); }
+        .score-fill.extreme { background: linear-gradient(90deg, #eb2f06, #ff0000); }
+        
+        /* 歷史參考 */
+        .history-ref {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .history-item {
+            text-align: center;
+            padding: 12px;
             background: rgba(255,255,255,0.03);
             border-radius: 8px;
         }
+        .history-item .value { font-size: 1.5em; font-weight: bold; }
+        .history-item .label { font-size: 0.8em; color: #888; margin-top: 3px; }
         
-        .heat-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 10px;
-        }
+        /* 價格資訊 */
+        .price-box { text-align: center; padding: 15px; }
+        .price-main { font-size: 2.2em; font-weight: bold; }
+        .price-change { font-size: 1.1em; margin-top: 5px; }
+        .up { color: #ff6b6b; }
+        .down { color: #26de81; }
         
-        .heat-dot.active { background: #ff6b6b; }
-        .heat-dot.inactive { background: #444; }
-        
-        .signal-card {
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 10px;
-            background: rgba(255,255,255,0.03);
-        }
-        
-        .signal-triggered {
-            background: rgba(255,107,107,0.2);
-            border-left: 4px solid #ff6b6b;
-        }
-        
-        .signal-name { font-weight: bold; margin-bottom: 5px; }
-        
-        .signal-status {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .signal-badge {
-            padding: 5px 15px;
-            border-radius: 15px;
-            font-size: 0.85em;
-        }
-        
-        .badge-triggered { background: #ff6b6b; color: #fff; }
-        .badge-waiting { background: #444; color: #888; }
-        
-        .ma-table { width: 100%; }
-        .ma-table th, .ma-table td { padding: 10px; text-align: center; }
-        .ma-table th { color: #888; font-weight: normal; }
-        .status-above { color: #26de81; }
-        .status-below { color: #ff6b6b; }
-        
-        .action-box {
-            background: linear-gradient(135deg, rgba(102,126,234,0.2), rgba(118,75,162,0.2));
-            border-radius: 15px;
-            padding: 25px;
-            text-align: center;
-        }
-        
-        .action-title { font-size: 1.3em; margin-bottom: 15px; }
-        .action-suggestion { font-size: 1.1em; color: #feca57; line-height: 1.6; }
-        
-        .key-levels {
+        /* 均線表 */
+        .ma-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin-top: 20px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 10px;
         }
-        
-        .level-item {
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            border-radius: 10px;
+        .ma-item {
             text-align: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
         }
+        .ma-item .value { font-size: 1.1em; font-weight: bold; }
+        .ma-item .label { font-size: 0.75em; color: #888; }
+        .ma-item.above { border-bottom: 2px solid #26de81; }
+        .ma-item.below { border-bottom: 2px solid #ff6b6b; }
         
-        .level-price { font-size: 1.5em; font-weight: bold; color: #48dbfb; }
-        .level-label { color: #888; font-size: 0.9em; margin-top: 5px; }
-        
-        .chart-container { height: 300px; margin-top: 15px; }
-        
-        .strategy-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-        
-        .strategy-table th, .strategy-table td {
-            padding: 12px;
+        /* 操作建議表 */
+        .action-table { width: 100%; margin-top: 15px; }
+        .action-table th, .action-table td {
+            padding: 12px 8px;
             text-align: left;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
         }
+        .action-table th { color: #888; font-weight: normal; font-size: 0.9em; }
+        .action-row.current { background: rgba(255,107,107,0.2); }
+        .action-row.current td { font-weight: bold; }
         
-        .strategy-table th { color: #48dbfb; font-weight: normal; }
+        /* 圖表 */
+        .chart-container { height: 280px; margin-top: 15px; }
         
-        .position-bar {
-            height: 8px;
-            background: #333;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-bottom: 5px;
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 80px 20px;
         }
-        
-        .position-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            border-radius: 4px;
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #333;
+            border-top-color: #ff6b6b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
         
         .error-box {
             background: rgba(255,107,107,0.2);
             border: 1px solid #ff6b6b;
-            padding: 20px;
+            padding: 25px;
             border-radius: 10px;
-            margin: 20px 0;
             text-align: center;
-        }
-        
-        .refresh-btn {
-            margin-top: 15px;
-            padding: 10px 25px;
-            background: #667eea;
-            border: none;
-            border-radius: 5px;
-            color: #fff;
-            cursor: pointer;
         }
         
         footer {
             text-align: center;
             padding: 20px;
-            color: #666;
+            color: #555;
             font-size: 0.85em;
             margin-top: 30px;
         }
         
         @media (max-width: 768px) {
-            .grid { grid-template-columns: 1fr; }
-            header h1 { font-size: 1.5em; }
-            .key-levels { grid-template-columns: 1fr; }
+            .grid, .grid-2 { grid-template-columns: 1fr; }
+            .score-display { gap: 15px; }
+            .score-item { min-width: 100px; padding: 15px; }
+            .score-value { font-size: 2em; }
+            .rec-action { font-size: 1.8em; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📉 台股做空訊號監控系統</h1>
-            <p class="update-time">資料更新時間：<span id="updateTime">載入中...</span></p>
+            <h1>🎯 台股做空訊號評分系統</h1>
+            <p class="subtitle">整合技術面、籌碼面、價格動能的多維度做空訊號分析</p>
+            <p class="subtitle">資料日期：<span id="dataDate">載入中...</span></p>
         </header>
         
         <div id="mainContent">
-            <div class="loading-screen">
-                <div class="loading-spinner"></div>
-                <div class="loading-text">正在從 GitHub 載入資料...</div>
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>正在載入資料並計算指標...</p>
             </div>
         </div>
         
         <footer>
-            <p>⚠️ 投資風險提醒：做空操作風險極高，歷史數據不代表未來表現，請審慎評估風險承受能力。</p>
-            <p>本系統僅供資料整理參考，不構成任何投資建議。</p>
+            <p>⚠️ 風險警告：做空操作具有極高風險，可能造成重大虧損。本系統僅供資料整理參考，所有投資決策與盈虧由使用者自行承擔。</p>
+            <p>歷史數據顯示：空方總分≥20時，10日下跌機率約49%，大跌(>5%)機率約14%</p>
         </footer>
     </div>
-    
-    <script>
-    // ====================================================================
-    // 🔧 設定區 - 請修改這裡的 GitHub Raw URL
-    // ====================================================================
-    const CONFIG = {
-        // 請將下方網址改成你的 GitHub Raw URL
-        // 格式：https://raw.githubusercontent.com/你的帳號/你的repo/main/檔案名稱.csv
-        
-        TXINDEX_URL: 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/TXINDEX.csv',
-        TSMC_URL: 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/2330.csv',
-        
-        // OTC 選填，如果沒有可以留空字串 ''
-        OTC_URL: ''
-    };
-    // ====================================================================
-    
-    let rawData = { tx: null, tsmc: null };
-    let processedData = [];
-    let priceChart = null;
-    
-    // 頁面載入時自動執行
-    window.onload = function() {
-        loadAllData();
-    };
-    
-    // 載入所有資料
-    async function loadAllData() {
-        try {
-            document.getElementById('mainContent').innerHTML = `
-                <div class="loading-screen">
-                    <div class="loading-spinner"></div>
-                    <div class="loading-text">正在從 GitHub 載入資料...</div>
-                </div>
-            `;
-            
-            // 同時載入兩個檔案
-            const [txData, tsmcData] = await Promise.all([
-                fetchCSV(CONFIG.TXINDEX_URL),
-                fetchCSV(CONFIG.TSMC_URL)
-            ]);
-            
-            rawData.tx = txData;
-            rawData.tsmc = tsmcData;
-            
-            // 處理並顯示
-            processData();
-            
-        } catch (error) {
-            console.error('載入錯誤:', error);
-            document.getElementById('mainContent').innerHTML = `
-                <div class="error-box">
-                    <h3>❌ 資料載入失敗</h3>
-                    <p style="margin-top:10px; color:#aaa;">${error.message}</p>
-                    <p style="margin-top:10px; color:#888; font-size:0.9em;">
-                        請確認：<br>
-                        1. GitHub URL 設定正確<br>
-                        2. Repository 是 Public<br>
-                        3. 檔案名稱正確
-                    </p>
-                    <button class="refresh-btn" onclick="loadAllData()">重新載入</button>
-                </div>
-            `;
-        }
-    }
-    
-    // 從 URL 載入 CSV
-    function fetchCSV(url) {
-        return new Promise((resolve, reject) => {
-            if (!url || url.includes('YOUR_USERNAME')) {
-                reject(new Error('請先設定 GitHub URL（在 HTML 檔案中的 CONFIG 區塊）'));
-                return;
-            }
-            
-            Papa.parse(url, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.data && results.data.length > 0) {
-                        // 過濾有效資料
-                        const validData = results.data.filter(row => {
-                            const date = row['日期'] || row['Date'] || row['date'];
-                            return date && date.length > 0;
-                        });
-                        resolve(validData);
-                    } else {
-                        reject(new Error('CSV 檔案沒有有效資料'));
-                    }
-                },
-                error: function(error) {
-                    reject(new Error('無法載入檔案: ' + error.message));
-                }
-            });
-        });
-    }
-    
-    // 取得欄位值
-    function getField(row, ...names) {
-        for (let name of names) {
-            if (row[name] !== undefined && row[name] !== '') {
-                return row[name];
-            }
-        }
-        return null;
-    }
-    
-    // 解析數字
-    function parseNum(val) {
-        if (val === null || val === undefined || val === '') return NaN;
-        return parseFloat(String(val).replace(/,/g, ''));
-    }
-    
-    // 計算移動平均
-    function calcMA(data, field, period) {
-        let result = [];
-        for (let i = 0; i < data.length; i++) {
-            if (i < period - 1) {
-                result.push(NaN);
-            } else {
-                let sum = 0;
-                for (let j = 0; j < period; j++) {
-                    sum += data[i - j][field];
-                }
-                result.push(sum / period);
-            }
-        }
-        return result;
-    }
-    
-    // 計算 RSI
-    function calcRSI(data, field, period) {
-        let result = [];
-        let gains = [];
-        let losses = [];
-        
-        for (let i = 0; i < data.length; i++) {
-            if (i === 0) {
-                result.push(50);
-                continue;
-            }
-            
-            let change = data[i][field] - data[i-1][field];
-            gains.push(change > 0 ? change : 0);
-            losses.push(change < 0 ? -change : 0);
-            
-            if (i < period) {
-                result.push(50);
-            } else {
-                let avgGain = gains.slice(-period).reduce((a,b) => a+b, 0) / period;
-                let avgLoss = losses.slice(-period).reduce((a,b) => a+b, 0) / period;
-                
-                if (avgLoss === 0) {
-                    result.push(100);
-                } else {
-                    let rs = avgGain / avgLoss;
-                    result.push(100 - (100 / (1 + rs)));
-                }
-            }
-        }
-        return result;
-    }
-    
-    // 處理資料
-    function processData() {
-        // 整理加權指數
-        let txData = rawData.tx.map(row => ({
-            date: getField(row, '日期', 'Date', 'date'),
-            close: parseNum(getField(row, '收盤價', '收盤指數', 'Close', 'close')),
-            open: parseNum(getField(row, '開盤價', '開盤指數', 'Open', 'open')),
-            high: parseNum(getField(row, '最高價', '最高指數', 'High', 'high')),
-            low: parseNum(getField(row, '最低價', '最低指數', 'Low', 'low')),
-            volume: parseNum(getField(row, '成交量', '成交金額', 'Volume', 'volume')),
-            foreign: parseNum(getField(row, '外資買賣超', '外資', 'Foreign')),
-            trust: parseNum(getField(row, '投信買賣超', '投信', 'Trust')),
-            margin: parseNum(getField(row, '融資餘額', '融資', 'Margin'))
-        })).filter(d => !isNaN(d.close));
-        
-        // 整理台積電
-        let tsmcMap = {};
-        rawData.tsmc.forEach(row => {
-            let dateStr = getField(row, '日期', 'Date', 'date');
-            tsmcMap[dateStr] = {
-                close: parseNum(getField(row, '收盤價', 'Close', 'close'))
-            };
-        });
-        
-        // 合併
-        let merged = txData.map(tx => ({
-            ...tx,
-            tsmcClose: tsmcMap[tx.date]?.close || NaN
-        })).filter(d => !isNaN(d.tsmcClose));
-        
-        // 取最近 120 天
-        merged = merged.slice(-120);
-        
-        // 計算指標
-        let ma5 = calcMA(merged, 'close', 5);
-        let ma20 = calcMA(merged, 'close', 20);
-        let ma60 = calcMA(merged, 'close', 60);
-        let rsi = calcRSI(merged, 'close', 14);
-        
-        let tsmcMa5 = calcMA(merged, 'tsmcClose', 5);
-        let tsmcMa20 = calcMA(merged, 'tsmcClose', 20);
-        let tsmcMa60 = calcMA(merged, 'tsmcClose', 60);
-        
-        // 組合最終資料
-        processedData = merged.map((row, i) => {
-            let dayReturn = i > 0 ? (row.close / merged[i-1].close - 1) * 100 : 0;
-            let tsmcReturn = i > 0 ? (row.tsmcClose / merged[i-1].tsmcClose - 1) * 100 : 0;
-            let bias20 = ma20[i] ? (row.close / ma20[i] - 1) * 100 : 0;
-            
-            let marginChange = 0;
-            if (i >= 20 && merged[i-20].margin) {
-                marginChange = (row.margin / merged[i-20].margin - 1) * 100;
-            }
-            
-            let foreign5 = 0;
-            for (let j = 0; j < 5 && i-j >= 0; j++) {
-                foreign5 += merged[i-j].foreign || 0;
-            }
-            
-            let gain60 = i >= 60 ? (row.close / merged[i-60].close - 1) * 100 : 0;
-            let gain120 = i >= 119 ? (row.close / merged[i-119].close - 1) * 100 : 0;
-            
-            let high52 = row.close;
-            for (let j = 0; j < Math.min(240, i+1); j++) {
-                if (merged[i-j].close > high52) high52 = merged[i-j].close;
-            }
-            let distHigh = (row.close / high52 - 1) * 100;
-            
-            return {
-                date: row.date,
-                close: row.close,
-                dayReturn,
-                ma5: ma5[i],
-                ma20: ma20[i],
-                ma60: ma60[i],
-                rsi: rsi[i],
-                bias20,
-                foreign: row.foreign,
-                foreign5,
-                trust: row.trust,
-                margin: row.margin,
-                marginChange,
-                tsmcClose: row.tsmcClose,
-                tsmcReturn,
-                tsmcMa5: tsmcMa5[i],
-                tsmcMa20: tsmcMa20[i],
-                tsmcMa60: tsmcMa60[i],
-                gain60,
-                gain120,
-                distHigh
-            };
-        });
-        
-        renderDashboard();
-    }
-    
-    // 渲染儀表板
-    function renderDashboard() {
-        const latest = processedData[processedData.length - 1];
-        
-        document.getElementById('updateTime').textContent = latest.date;
-        
-        // 過熱檢查
-        const heatChecks = [
-            { name: '乖離率 > 3%', check: latest.bias20 > 3, value: latest.bias20.toFixed(2) + '%' },
-            { name: '乖離率 > 5%', check: latest.bias20 > 5, value: latest.bias20.toFixed(2) + '%' },
-            { name: 'RSI > 70', check: latest.rsi > 70, value: latest.rsi.toFixed(1) },
-            { name: 'RSI > 75', check: latest.rsi > 75, value: latest.rsi.toFixed(1) },
-            { name: '融資增 > 5%', check: latest.marginChange > 5, value: (latest.marginChange || 0).toFixed(2) + '%' },
-            { name: '融資增 > 7%', check: latest.marginChange > 7, value: (latest.marginChange || 0).toFixed(2) + '%' },
-            { name: '60日漲 > 15%', check: latest.gain60 > 15, value: latest.gain60.toFixed(2) + '%' },
-            { name: '120日漲 > 25%', check: latest.gain120 > 25, value: latest.gain120.toFixed(2) + '%' },
-            { name: '接近52週高', check: latest.distHigh > -3, value: latest.distHigh.toFixed(2) + '%' },
-        ];
-        
-        const heatScore = heatChecks.filter(h => h.check).length;
-        
-        // 訊號判斷
-        const signals = {
-            trial: latest.close > latest.ma20 && latest.dayReturn < -1 && latest.foreign < 0 && latest.tsmcReturn < 0,
-            build: latest.close < latest.ma20 && latest.tsmcClose < latest.tsmcMa20,
-            add: latest.close < latest.ma60 && latest.tsmcClose < latest.tsmcMa60,
-            heavy: false
-        };
-        
-        // HTML
-        let html = `
-            <div class="grid">
-                <div class="card">
-                    <div class="card-title">📊 加權指數</div>
-                    <div class="price-display">
-                        <div class="price-main">${latest.close.toLocaleString()}</div>
-                        <div class="price-change ${latest.dayReturn >= 0 ? 'price-up' : 'price-down'}">
-                            ${latest.dayReturn >= 0 ? '▲' : '▼'} ${Math.abs(latest.dayReturn).toFixed(2)}%
-                        </div>
-                    </div>
-                    <div class="indicator-row">
-                        <span class="indicator-label">20日乖離率</span>
-                        <span class="indicator-value">${latest.bias20.toFixed(2)}%</span>
-                    </div>
-                    <div class="indicator-row">
-                        <span class="indicator-label">RSI(14)</span>
-                        <span class="indicator-value">${latest.rsi.toFixed(1)}</span>
-                    </div>
-                    <div class="indicator-row">
-                        <span class="indicator-label">外資買賣超</span>
-                        <span class="indicator-value ${latest.foreign >= 0 ? 'price-up' : 'price-down'}">${((latest.foreign||0)/1e8).toFixed(1)}億</span>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card-title">🏭 台積電 (2330)</div>
-                    <div class="price-display">
-                        <div class="price-main">${latest.tsmcClose.toLocaleString()}</div>
-                        <div class="price-change ${latest.tsmcReturn >= 0 ? 'price-up' : 'price-down'}">
-                            ${latest.tsmcReturn >= 0 ? '▲' : '▼'} ${Math.abs(latest.tsmcReturn).toFixed(2)}%
-                        </div>
-                    </div>
-                    <div class="indicator-row">
-                        <span class="indicator-label">5日均線</span>
-                        <span class="indicator-value">${latest.tsmcMa5?.toFixed(0) || '-'}</span>
-                    </div>
-                    <div class="indicator-row">
-                        <span class="indicator-label">20日均線</span>
-                        <span class="indicator-value">${latest.tsmcMa20?.toFixed(0) || '-'}</span>
-                    </div>
-                    <div class="indicator-row">
-                        <span class="indicator-label">60日均線</span>
-                        <span class="indicator-value">${latest.tsmcMa60?.toFixed(0) || '-'}</span>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card-title">🌡️ 過熱分數</div>
-                    <div class="heat-score">
-                        <span class="score" style="color: ${getHeatColor(heatScore)}">${heatScore}</span>
-                        <span class="max">/ 9</span>
-                        <div class="heat-level ${getHeatClass(heatScore)}">
-                            ${getHeatText(heatScore)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="grid">
-                <div class="card">
-                    <div class="card-title">📋 過熱指標明細</div>
-                    ${heatChecks.map(h => `
-                        <div class="heat-item">
-                            <div style="display: flex; align-items: center;">
-                                <div class="heat-dot ${h.check ? 'active' : 'inactive'}"></div>
-                                <span>${h.name}</span>
-                            </div>
-                            <span>${h.value}</span>
-                        </div>
-                    `).join('')}
-                </div>
-                
-                <div class="card">
-                    <div class="card-title">📈 均線狀態</div>
-                    <table class="ma-table">
-                        <tr><th></th><th>加權指數</th><th>狀態</th><th>台積電</th><th>狀態</th></tr>
-                        <tr>
-                            <td>5日均</td>
-                            <td>${latest.ma5?.toFixed(0) || '-'}</td>
-                            <td class="${latest.close > latest.ma5 ? 'status-above' : 'status-below'}">${latest.close > latest.ma5 ? '✓站上' : '✗跌破'}</td>
-                            <td>${latest.tsmcMa5?.toFixed(0) || '-'}</td>
-                            <td class="${latest.tsmcClose > latest.tsmcMa5 ? 'status-above' : 'status-below'}">${latest.tsmcClose > latest.tsmcMa5 ? '✓站上' : '✗跌破'}</td>
-                        </tr>
-                        <tr>
-                            <td>20日均</td>
-                            <td>${latest.ma20?.toFixed(0) || '-'}</td>
-                            <td class="${latest.close > latest.ma20 ? 'status-above' : 'status-below'}">${latest.close > latest.ma20 ? '✓站上' : '✗跌破'}</td>
-                            <td>${latest.tsmcMa20?.toFixed(0) || '-'}</td>
-                            <td class="${latest.tsmcClose > latest.tsmcMa20 ? 'status-above' : 'status-below'}">${latest.tsmcClose > latest.tsmcMa20 ? '✓站上' : '✗跌破'}</td>
-                        </tr>
-                        <tr>
-                            <td>60日均</td>
-                            <td>${latest.ma60?.toFixed(0) || '-'}</td>
-                            <td class="${latest.close > latest.ma60 ? 'status-above' : 'status-below'}">${latest.close > latest.ma60 ? '✓站上' : '✗跌破'}</td>
-                            <td>${latest.tsmcMa60?.toFixed(0) || '-'}</td>
-                            <td class="${latest.tsmcClose > latest.tsmcMa60 ? 'status-above' : 'status-below'}">${latest.tsmcClose > latest.tsmcMa60 ? '✓站上' : '✗跌破'}</td>
-                        </tr>
-                    </table>
-                </div>
-                
-                <div class="card">
-                    <div class="card-title">🎯 做空訊號檢測</div>
-                    <div class="signal-card ${signals.trial ? 'signal-triggered' : ''}">
-                        <div class="signal-name">試單訊號（10%部位）</div>
-                        <div class="signal-status">
-                            <span>高檔+收黑>1%+外資賣+台積黑</span>
-                            <span class="signal-badge ${signals.trial ? 'badge-triggered' : 'badge-waiting'}">${signals.trial ? '🔴 觸發' : '⚪ 等待'}</span>
-                        </div>
-                    </div>
-                    <div class="signal-card ${signals.build ? 'signal-triggered' : ''}">
-                        <div class="signal-name">建倉訊號（30%部位）</div>
-                        <div class="signal-status">
-                            <span>破20均+台積破20均</span>
-                            <span class="signal-badge ${signals.build ? 'badge-triggered' : 'badge-waiting'}">${signals.build ? '🔴 觸發' : '⚪ 等待'}</span>
-                        </div>
-                    </div>
-                    <div class="signal-card ${signals.add ? 'signal-triggered' : ''}">
-                        <div class="signal-name">加碼訊號（50%部位）</div>
-                        <div class="signal-status">
-                            <span>破60均+台積破60均</span>
-                            <span class="signal-badge ${signals.add ? 'badge-triggered' : 'badge-waiting'}">${signals.add ? '🔴 觸發' : '⚪ 等待'}</span>
-                        </div>
-                    </div>
-                    <div class="signal-card">
-                        <div class="signal-name">重壓訊號（80%部位）</div>
-                        <div class="signal-status">
-                            <span>反彈失敗確認（手動判斷）</span>
-                            <span class="signal-badge badge-waiting">⚪ 等待</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card action-box">
-                <div class="action-title">📌 今日行動建議</div>
-                <div class="action-suggestion">${getActionSuggestion(heatScore, signals)}</div>
-                <div class="key-levels">
-                    <div class="level-item">
-                        <div class="level-price">${latest.ma20?.toFixed(0) || '-'}</div>
-                        <div class="level-label">20日均線（建倉點）</div>
-                    </div>
-                    <div class="level-item">
-                        <div class="level-price">${latest.ma60?.toFixed(0) || '-'}</div>
-                        <div class="level-label">60日均線（加碼點）</div>
-                    </div>
-                    <div class="level-item">
-                        <div class="level-price">${latest.tsmcMa20?.toFixed(0) || '-'}</div>
-                        <div class="level-label">台積20均（確認點）</div>
-                    </div>
-                    <div class="level-item">
-                        <div class="level-price">${latest.tsmcMa60?.toFixed(0) || '-'}</div>
-                        <div class="level-label">台積60均（確認點）</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card" style="margin-top: 20px;">
-                <div class="card-title">📊 金字塔加減碼策略</div>
-                <table class="strategy-table">
-                    <tr><th>階段</th><th>部位</th><th>進場條件</th><th>停損</th><th>歷史勝率</th></tr>
-                    <tr><td>觀察期</td><td><div class="position-bar"><div class="position-fill" style="width:0%"></div></div>0%</td><td>過熱分數 ≥ 5</td><td>-</td><td>-</td></tr>
-                    <tr><td>試單期</td><td><div class="position-bar"><div class="position-fill" style="width:10%"></div></div>10%</td><td>高檔收黑+外資賣+台積黑</td><td>進場價 +3%</td><td>~45%</td></tr>
-                    <tr><td>建倉期</td><td><div class="position-bar"><div class="position-fill" style="width:30%"></div></div>30%</td><td>跌破20日均線</td><td>20均 +2%</td><td>~49%</td></tr>
-                    <tr><td>加碼期</td><td><div class="position-bar"><div class="position-fill" style="width:50%"></div></div>50%</td><td>跌破60日均線</td><td>60均 +2%</td><td>~49%</td></tr>
-                    <tr><td>重壓期</td><td><div class="position-bar"><div class="position-fill" style="width:80%"></div></div>80%</td><td>反彈失敗確認</td><td>反彈高點 +1%</td><td>~56%</td></tr>
-                </table>
-            </div>
-            
-            <div class="card" style="margin-top: 20px;">
-                <div class="card-title">📈 近期走勢</div>
-                <div class="chart-container">
-                    <canvas id="priceChart"></canvas>
-                </div>
+
+<script>
+// ============================================================
+// 🔧 設定區 - 修改這裡的 GitHub Raw URL
+// ============================================================
+const CONFIG = {
+    TXINDEX_URL: 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/TXINDEX.csv',
+    TSMC_URL: 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/2330.csv',
+};
+// ============================================================
+
+let rawData = { tx: null, tsmc: null };
+let processed = [];
+
+// 頁面載入
+window.onload = () => loadAllData();
+
+async function loadAllData() {
+    try {
+        const [txData, tsmcData] = await Promise.all([
+            fetchCSV(CONFIG.TXINDEX_URL),
+            fetchCSV(CONFIG.TSMC_URL)
+        ]);
+        rawData.tx = txData;
+        rawData.tsmc = tsmcData;
+        processData();
+    } catch (err) {
+        document.getElementById('mainContent').innerHTML = `
+            <div class="error-box">
+                <h3>❌ 載入失敗</h3>
+                <p style="margin-top:10px;color:#aaa;">${err.message}</p>
+                <p style="margin-top:15px;color:#888;font-size:0.9em;">
+                    請在 HTML 檔案中設定正確的 GitHub Raw URL
+                </p>
+                <button onclick="loadAllData()" style="margin-top:15px;padding:10px 25px;background:#667eea;border:none;border-radius:5px;color:#fff;cursor:pointer;">重試</button>
             </div>
         `;
-        
-        document.getElementById('mainContent').innerHTML = html;
-        renderChart();
     }
-    
-    function getHeatColor(score) {
-        if (score >= 7) return '#ff0000';
-        if (score >= 5) return '#ff6b6b';
-        if (score >= 3) return '#feca57';
-        return '#26de81';
-    }
-    
-    function getHeatClass(score) {
-        if (score >= 7) return 'heat-extreme';
-        if (score >= 5) return 'heat-high';
-        if (score >= 3) return 'heat-medium';
-        return 'heat-low';
-    }
-    
-    function getHeatText(score) {
-        if (score >= 7) return '🔥 高度過熱';
-        if (score >= 5) return '⚠️ 中度過熱';
-        if (score >= 3) return '📊 輕度過熱';
-        return '✅ 尚未過熱';
-    }
-    
-    function getActionSuggestion(score, signals) {
-        if (signals.add) return '⚡ 加碼訊號已觸發！可考慮將空單部位加碼至50%，停損設在60日均線上方2%';
-        if (signals.build) return '📉 建倉訊號已觸發！可考慮將空單部位加碼至30%，停損設在20日均線上方2%';
-        if (signals.trial) return '🎯 試單訊號觸發！可考慮建立10%空單部位試單，停損設在進場價上方3%';
-        if (score >= 7) return '市場高度過熱，準備試單資金。等待條件：收黑>1% + 外資賣超 + 台積電收黑';
-        if (score >= 5) return '市場中度過熱，進入觀察期。密切關注轉弱訊號，若明日收黑+外資賣超可考慮小量試單';
-        if (score >= 3) return '市場輕度過熱，持續觀察。尚未到理想做空時機，耐心等待過熱分數上升';
-        return '市場尚未過熱，暫不建議做空。市場仍有上漲動能，保持觀望';
-    }
-    
-    function renderChart() {
-        const ctx = document.getElementById('priceChart').getContext('2d');
-        const last30 = processedData.slice(-30);
-        
-        if (priceChart) priceChart.destroy();
-        
-        priceChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: last30.map(d => d.date.slice(5)),
-                datasets: [
-                    {
-                        label: '加權指數',
-                        data: last30.map(d => d.close),
-                        borderColor: '#48dbfb',
-                        backgroundColor: 'rgba(72,219,251,0.1)',
-                        fill: true,
-                        tension: 0.4
-                    },
-                    {
-                        label: '20日均線',
-                        data: last30.map(d => d.ma20),
-                        borderColor: '#feca57',
-                        borderDash: [5, 5],
-                        fill: false,
-                        tension: 0.4
-                    },
-                    {
-                        label: '60日均線',
-                        data: last30.map(d => d.ma60),
-                        borderColor: '#ff6b6b',
-                        borderDash: [5, 5],
-                        fill: false,
-                        tension: 0.4
-                    }
-                ]
+}
+
+function fetchCSV(url) {
+    return new Promise((resolve, reject) => {
+        if (!url || url.includes('YOUR_USERNAME')) {
+            reject(new Error('請先設定 GitHub URL'));
+            return;
+        }
+        Papa.parse(url, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: res => {
+                const valid = res.data.filter(r => r['日期'] || r['Date']);
+                if (valid.length > 0) resolve(valid);
+                else reject(new Error('CSV 無有效資料'));
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { intersect: false, mode: 'index' },
-                plugins: { legend: { labels: { color: '#888' } } },
-                scales: {
-                    x: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }
-                }
-            }
+            error: err => reject(err)
         });
+    });
+}
+
+function getField(row, ...names) {
+    for (let n of names) {
+        if (row[n] !== undefined && row[n] !== '') return row[n];
     }
-    </script>
+    return null;
+}
+
+function parseNum(v) {
+    if (v === null || v === undefined || v === '') return NaN;
+    return parseFloat(String(v).replace(/,/g, ''));
+}
+
+function calcMA(data, field, period) {
+    return data.map((_, i) => {
+        if (i < period - 1) return NaN;
+        let sum = 0;
+        for (let j = 0; j < period; j++) sum += data[i - j][field];
+        return sum / period;
+    });
+}
+
+function calcRSI(data, field, period) {
+    let result = [], gains = [], losses = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i === 0) { result.push(50); continue; }
+        let change = data[i][field] - data[i-1][field];
+        gains.push(change > 0 ? change : 0);
+        losses.push(change < 0 ? -change : 0);
+        if (i < period) { result.push(50); }
+        else {
+            let avgG = gains.slice(-period).reduce((a,b)=>a+b,0) / period;
+            let avgL = losses.slice(-period).reduce((a,b)=>a+b,0) / period;
+            result.push(avgL === 0 ? 100 : 100 - (100 / (1 + avgG/avgL)));
+        }
+    }
+    return result;
+}
+
+function calcMACD(data, field) {
+    // EMA 計算
+    function ema(arr, period) {
+        let result = [];
+        let k = 2 / (period + 1);
+        for (let i = 0; i < arr.length; i++) {
+            if (i === 0) result.push(arr[i]);
+            else result.push(arr[i] * k + result[i-1] * (1-k));
+        }
+        return result;
+    }
+    let prices = data.map(d => d[field]);
+    let ema12 = ema(prices, 12);
+    let ema26 = ema(prices, 26);
+    let dif = ema12.map((v, i) => v - ema26[i]);
+    let macd = ema(dif, 9);
+    let osc = dif.map((v, i) => v - macd[i]);
+    return { dif, macd, osc };
+}
+
+function processData() {
+    // 整理資料
+    let txData = rawData.tx.map(row => ({
+        date: getField(row, '日期', 'Date'),
+        close: parseNum(getField(row, '收盤價', '收盤指數', 'Close')),
+        open: parseNum(getField(row, '開盤價', '開盤指數', 'Open')),
+        high: parseNum(getField(row, '最高價', '最高指數', 'High')),
+        low: parseNum(getField(row, '最低價', '最低指數', 'Low')),
+        volume: parseNum(getField(row, '成交量', '成交金額', 'Volume')),
+        foreign: parseNum(getField(row, '外資買賣超', '外資')),
+        trust: parseNum(getField(row, '投信買賣超', '投信')),
+        margin: parseNum(getField(row, '融資餘額', '融資'))
+    })).filter(d => !isNaN(d.close));
+    
+    let tsmcMap = {};
+    rawData.tsmc.forEach(row => {
+        let date = getField(row, '日期', 'Date');
+        tsmcMap[date] = parseNum(getField(row, '收盤價', 'Close'));
+    });
+    
+    let merged = txData.map(tx => ({
+        ...tx,
+        tsmcClose: tsmcMap[tx.date] || NaN
+    })).filter(d => !isNaN(d.tsmcClose));
+    
+    merged = merged.slice(-150);
+    
+    // 計算指標
+    let ma5 = calcMA(merged, 'close', 5);
+    let ma10 = calcMA(merged, 'close', 10);
+    let ma20 = calcMA(merged, 'close', 20);
+    let ma60 = calcMA(merged, 'close', 60);
+    let rsi = calcRSI(merged, 'close', 14);
+    let { dif, macd, osc } = calcMACD(merged, 'close');
+    
+    let tsmcMa5 = calcMA(merged, 'tsmcClose', 5);
+    let tsmcMa20 = calcMA(merged, 'tsmcClose', 20);
+    let tsmcMa60 = calcMA(merged, 'tsmcClose', 60);
+    let volMa20 = calcMA(merged, 'volume', 20);
+    
+    // 組合資料
+    processed = merged.map((row, i) => {
+        let dayRet = i > 0 ? (row.close / merged[i-1].close - 1) * 100 : 0;
+        let tsmcRet = i > 0 ? (row.tsmcClose / merged[i-1].tsmcClose - 1) * 100 : 0;
+        let bias20 = ma20[i] ? (row.close / ma20[i] - 1) * 100 : 0;
+        
+        // 連跌天數
+        let downDays = 0;
+        for (let j = i; j >= 0; j--) {
+            if (j === 0 || merged[j].close < merged[j-1].close) downDays++;
+            else break;
+        }
+        
+        // 外資連賣天數
+        let foreignSellDays = 0;
+        for (let j = i; j >= 0; j--) {
+            if (merged[j].foreign < 0) foreignSellDays++;
+            else break;
+        }
+        
+        // 融資變化
+        let marginChange = i >= 20 && merged[i-20].margin ? 
+            (row.margin / merged[i-20].margin - 1) * 100 : 0;
+        
+        // 漲幅
+        let gain60 = i >= 60 ? (row.close / merged[i-60].close - 1) * 100 : 0;
+        let gain120 = i >= 120 ? (row.close / merged[i-120].close - 1) * 100 : 0;
+        
+        // 52週高
+        let high52 = row.close;
+        for (let j = 0; j < Math.min(240, i+1); j++) {
+            if (merged[i-j].close > high52) high52 = merged[i-j].close;
+        }
+        let distHigh = (row.close / high52 - 1) * 100;
+        
+        // 量比
+        let volRatio = volMa20[i] ? row.volume / volMa20[i] : 1;
+        
+        // MACD 相關
+        let prevOsc = i > 0 ? osc[i-1] : 0;
+        let oscDecreasing = osc[i] < prevOsc;
+        let macdDeathCross = i > 0 && dif[i] < macd[i] && dif[i-1] >= macd[i-1];
+        
+        return {
+            date: row.date,
+            close: row.close,
+            open: row.open,
+            high: row.high,
+            low: row.low,
+            volume: row.volume,
+            dayRet,
+            ma5: ma5[i],
+            ma10: ma10[i],
+            ma20: ma20[i],
+            ma60: ma60[i],
+            rsi: rsi[i],
+            bias20,
+            dif: dif[i],
+            macd: macd[i],
+            osc: osc[i],
+            oscDecreasing,
+            macdDeathCross,
+            foreign: row.foreign,
+            foreignSellDays,
+            trust: row.trust,
+            margin: row.margin,
+            marginChange,
+            tsmcClose: row.tsmcClose,
+            tsmcRet,
+            tsmcMa5: tsmcMa5[i],
+            tsmcMa20: tsmcMa20[i],
+            tsmcMa60: tsmcMa60[i],
+            downDays,
+            gain60,
+            gain120,
+            distHigh,
+            volRatio
+        };
+    });
+    
+    renderDashboard();
+}
+
+function renderDashboard() {
+    const d = processed[processed.length - 1];
+    document.getElementById('dataDate').textContent = d.date;
+    
+    // ========== 定義所有指標 ==========
+    const indicators = {
+        overheat: [
+            { name: 'RSI > 70', value: d.rsi, threshold: 70, check: d.rsi > 70, weight: 1 },
+            { name: 'RSI > 75', value: d.rsi, threshold: 75, check: d.rsi > 75, weight: 1 },
+            { name: '乖離率 > 3%', value: d.bias20, threshold: 3, check: d.bias20 > 3, weight: 1 },
+            { name: '乖離率 > 5%', value: d.bias20, threshold: 5, check: d.bias20 > 5, weight: 1 },
+            { name: '融資增 > 5%', value: d.marginChange, threshold: 5, check: d.marginChange > 5, weight: 1 },
+            { name: '融資增 > 7%', value: d.marginChange, threshold: 7, check: d.marginChange > 7, weight: 1 },
+            { name: '60日漲 > 15%', value: d.gain60, threshold: 15, check: d.gain60 > 15, weight: 1 },
+            { name: '120日漲 > 25%', value: d.gain120, threshold: 25, check: d.gain120 > 25, weight: 1 },
+            { name: '接近52週高', value: d.distHigh, threshold: -3, check: d.distHigh > -3, weight: 1 },
+        ],
+        price: [
+            { name: '收黑K', value: d.dayRet, check: d.dayRet < 0, weight: 1 },
+            { name: '大黑K (>1%)', value: d.dayRet, check: d.dayRet < -1, weight: 2 },
+            { name: '大黑K (>2%)', value: d.dayRet, check: d.dayRet < -2, weight: 3 },
+            { name: '跌破5日均', value: d.close, ref: d.ma5, check: d.close < d.ma5, weight: 1 },
+            { name: '跌破20日均', value: d.close, ref: d.ma20, check: d.close < d.ma20, weight: 2 },
+            { name: '跌破60日均', value: d.close, ref: d.ma60, check: d.close < d.ma60, weight: 3 },
+            { name: '連跌2天', value: d.downDays, check: d.downDays >= 2, weight: 1 },
+            { name: '連跌3天', value: d.downDays, check: d.downDays >= 3, weight: 2 },
+        ],
+        chip: [
+            { name: '外資賣超', value: d.foreign/1e8, check: d.foreign < 0, weight: 2 },
+            { name: '外資連賣2天', value: d.foreignSellDays, check: d.foreignSellDays >= 2, weight: 2 },
+            { name: '外資連賣3天', value: d.foreignSellDays, check: d.foreignSellDays >= 3, weight: 3 },
+            { name: '外資連賣5天', value: d.foreignSellDays, check: d.foreignSellDays >= 5, weight: 4 },
+            { name: '投信賣超', value: d.trust/1e8, check: d.trust < 0, weight: 1 },
+        ],
+        technical: [
+            { name: 'RSI < 50', value: d.rsi, check: d.rsi < 50, weight: 1 },
+            { name: 'RSI < 40', value: d.rsi, check: d.rsi < 40, weight: 2 },
+            { name: 'RSI < 30', value: d.rsi, check: d.rsi < 30, weight: 3 },
+            { name: 'MACD死叉', value: d.macdDeathCross ? '是' : '否', check: d.macdDeathCross, weight: 2 },
+            { name: 'OSC柱縮減', value: d.oscDecreasing ? '是' : '否', check: d.oscDecreasing && d.osc > 0, weight: 1 },
+            { name: 'OSC轉負', value: d.osc, check: d.osc < 0, weight: 2 },
+        ],
+        tsmc: [
+            { name: '台積電收黑', value: d.tsmcRet, check: d.tsmcRet < 0, weight: 1 },
+            { name: '台積電跌>1%', value: d.tsmcRet, check: d.tsmcRet < -1, weight: 2 },
+            { name: '台積電跌>2%', value: d.tsmcRet, check: d.tsmcRet < -2, weight: 3 },
+            { name: '台積破20均', value: d.tsmcClose, ref: d.tsmcMa20, check: d.tsmcClose < d.tsmcMa20, weight: 2 },
+            { name: '台積破60均', value: d.tsmcClose, ref: d.tsmcMa60, check: d.tsmcClose < d.tsmcMa60, weight: 3 },
+        ],
+        volume: [
+            { name: '量縮(<0.8倍)', value: d.volRatio, check: d.volRatio < 0.8, weight: 1 },
+            { name: '爆量收黑', value: d.volRatio, check: d.volRatio > 1.5 && d.dayRet < 0, weight: 2 },
+        ]
+    };
+    
+    // 計算分數
+    let overheatScore = indicators.overheat.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+    let priceScore = indicators.price.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+    let chipScore = indicators.chip.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+    let techScore = indicators.technical.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+    let tsmcScore = indicators.tsmc.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+    let volScore = indicators.volume.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+    
+    let shortScore = priceScore + chipScore + techScore + tsmcScore + volScore;
+    let totalTriggered = 
+        indicators.price.filter(i => i.check).length +
+        indicators.chip.filter(i => i.check).length +
+        indicators.technical.filter(i => i.check).length +
+        indicators.tsmc.filter(i => i.check).length +
+        indicators.volume.filter(i => i.check).length;
+    
+    // 歷史勝率對照（基於回測數據）
+    function getWinRate(score) {
+        if (score >= 24) return { rate: 48.5, big: 13.9 };
+        if (score >= 20) return { rate: 49.0, big: 14.1 };
+        if (score >= 16) return { rate: 48.2, big: 13.5 };
+        if (score >= 12) return { rate: 46.9, big: 13.1 };
+        if (score >= 8) return { rate: 46.1, big: 12.3 };
+        if (score >= 4) return { rate: 45.6, big: 11.3 };
+        return { rate: 44.3, big: 9.3 };
+    }
+    
+    let winData = getWinRate(shortScore);
+    
+    // 判斷建議
+    function getRecommendation(overheat, shortScore, d) {
+        // 已破60均+台積也破 = 可重壓
+        if (d.close < d.ma60 && d.tsmcClose < d.tsmcMa60 && shortScore >= 16) {
+            return {
+                level: 'heavy',
+                action: '🔥 強力做空',
+                detail: `空方總分${shortScore}分，價格已破60日均線，台積電同步破線<br>歷史10日下跌機率: ${winData.rate}%，大跌機率: ${winData.big}%<br><b>建議：積極做空，部位可達80%，停損設在反彈高點上方1%</b>`,
+                class: 'rec-heavy'
+            };
+        }
+        // 破60均
+        if (d.close < d.ma60 && shortScore >= 12) {
+            return {
+                level: 'add',
+                action: '📉 加碼做空',
+                detail: `空方總分${shortScore}分，價格已跌破60日均線<br>歷史10日下跌機率: ${winData.rate}%<br><b>建議：加碼空單至50%，停損設在60日均線上方2%</b>`,
+                class: 'rec-add'
+            };
+        }
+        // 破20均
+        if (d.close < d.ma20 && shortScore >= 8) {
+            return {
+                level: 'build',
+                action: '📊 建倉做空',
+                detail: `空方總分${shortScore}分，價格已跌破20日均線<br>歷史10日下跌機率: ${winData.rate}%<br><b>建議：建立30%空單部位，停損設在20日均線上方2%</b>`,
+                class: 'rec-build'
+            };
+        }
+        // 高檔出現空方訊號
+        if (overheat >= 5 && shortScore >= 6) {
+            return {
+                level: 'trial',
+                action: '🎯 試單做空',
+                detail: `過熱分數${overheat}/9，空方總分${shortScore}分<br>市場處於高檔且出現轉弱訊號<br><b>建議：試單10%，停損設在進場價上方3%</b>`,
+                class: 'rec-trial'
+            };
+        }
+        // 過熱但尚無空方訊號
+        if (overheat >= 5) {
+            return {
+                level: 'prepare',
+                action: '⚡ 準備做空',
+                detail: `過熱分數${overheat}/9，但空方訊號尚不足<br>市場處於高檔，需等待轉弱訊號<br><b>建議：準備資金，等待收黑+外資賣超+台積轉弱</b>`,
+                class: 'rec-prepare'
+            };
+        }
+        // 輕度過熱
+        if (overheat >= 3) {
+            return {
+                level: 'watch',
+                action: '👀 密切觀察',
+                detail: `過熱分數${overheat}/9，市場開始升溫<br><b>建議：持續觀察，尚未到最佳做空時機</b>`,
+                class: 'rec-watch'
+            };
+        }
+        // 尚未過熱
+        return {
+            level: 'wait',
+            action: '⏳ 等待時機',
+            detail: `過熱分數${overheat}/9，市場尚未過熱<br><b>建議：保持觀望，等待過熱訊號出現</b>`,
+            class: 'rec-wait'
+        };
+    }
+    
+    let rec = getRecommendation(overheatScore, shortScore, d);
+    
+    // ========== 渲染 HTML ==========
+    let html = `
+        <!-- 建議框 -->
+        <div class="recommendation-box ${rec.class}">
+            <div class="rec-title">📌 今日操作建議</div>
+            <div class="rec-action">${rec.action}</div>
+            <div class="rec-detail">${rec.detail}</div>
+        </div>
+        
+        <!-- 分數總覽 -->
+        <div class="score-display">
+            <div class="score-item">
+                <div class="score-value" style="color:${overheatScore >= 5 ? '#ff6b6b' : '#feca57'}">${overheatScore}</div>
+                <div class="score-label">過熱分數 /9</div>
+            </div>
+            <div class="score-item">
+                <div class="score-value" style="color:${shortScore >= 16 ? '#ff0000' : shortScore >= 8 ? '#ff6b6b' : '#48dbfb'}">${shortScore}</div>
+                <div class="score-label">空方總分</div>
+            </div>
+            <div class="score-item">
+                <div class="score-value">${totalTriggered}</div>
+                <div class="score-label">觸發訊號數</div>
+            </div>
+            <div class="score-item">
+                <div class="score-value" style="color:${winData.rate >= 48 ? '#ff6b6b' : '#feca57'}">${winData.rate}%</div>
+                <div class="score-label">歷史10日跌率</div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <!-- 加權指數 -->
+            <div class="card">
+                <div class="card-title">📊 加權指數</div>
+                <div class="price-box">
+                    <div class="price-main">${d.close.toLocaleString()}</div>
+                    <div class="price-change ${d.dayRet >= 0 ? 'up' : 'down'}">
+                        ${d.dayRet >= 0 ? '▲' : '▼'} ${Math.abs(d.dayRet).toFixed(2)}%
+                    </div>
+                </div>
+                <div class="ma-grid">
+                    <div class="ma-item ${d.close > d.ma5 ? 'above' : 'below'}">
+                        <div class="value">${d.ma5?.toFixed(0) || '-'}</div>
+                        <div class="label">5日均</div>
+                    </div>
+                    <div class="ma-item ${d.close > d.ma20 ? 'above' : 'below'}">
+                        <div class="value">${d.ma20?.toFixed(0) || '-'}</div>
+                        <div class="label">20日均</div>
+                    </div>
+                    <div class="ma-item ${d.close > d.ma60 ? 'above' : 'below'}">
+                        <div class="value">${d.ma60?.toFixed(0) || '-'}</div>
+                        <div class="label">60日均</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 台積電 -->
+            <div class="card">
+                <div class="card-title">🏭 台積電</div>
+                <div class="price-box">
+                    <div class="price-main">${d.tsmcClose.toLocaleString()}</div>
+                    <div class="price-change ${d.tsmcRet >= 0 ? 'up' : 'down'}">
+                        ${d.tsmcRet >= 0 ? '▲' : '▼'} ${Math.abs(d.tsmcRet).toFixed(2)}%
+                    </div>
+                </div>
+                <div class="ma-grid">
+                    <div class="ma-item ${d.tsmcClose > d.tsmcMa5 ? 'above' : 'below'}">
+                        <div class="value">${d.tsmcMa5?.toFixed(0) || '-'}</div>
+                        <div class="label">5日均</div>
+                    </div>
+                    <div class="ma-item ${d.tsmcClose > d.tsmcMa20 ? 'above' : 'below'}">
+                        <div class="value">${d.tsmcMa20?.toFixed(0) || '-'}</div>
+                        <div class="label">20日均</div>
+                    </div>
+                    <div class="ma-item ${d.tsmcClose > d.tsmcMa60 ? 'above' : 'below'}">
+                        <div class="value">${d.tsmcMa60?.toFixed(0) || '-'}</div>
+                        <div class="label">60日均</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 籌碼面 -->
+            <div class="card">
+                <div class="card-title">💰 籌碼面</div>
+                ${renderIndicatorGroup(indicators.chip, chipScore, 12)}
+            </div>
+        </div>
+        
+        <div class="grid grid-2">
+            <!-- 過熱指標 -->
+            <div class="card">
+                <div class="card-title">🌡️ 過熱指標 (分數: ${overheatScore}/9)</div>
+                ${renderIndicatorGroup(indicators.overheat, overheatScore, 9)}
+            </div>
+            
+            <!-- 價格訊號 -->
+            <div class="card">
+                <div class="card-title">📈 價格訊號 (分數: ${priceScore})</div>
+                ${renderIndicatorGroup(indicators.price, priceScore, 15)}
+            </div>
+        </div>
+        
+        <div class="grid grid-2">
+            <!-- 技術指標 -->
+            <div class="card">
+                <div class="card-title">📉 技術指標 (分數: ${techScore})</div>
+                ${renderIndicatorGroup(indicators.technical, techScore, 11)}
+            </div>
+            
+            <!-- 台積電訊號 -->
+            <div class="card">
+                <div class="card-title">🏭 台積電訊號 (分數: ${tsmcScore})</div>
+                ${renderIndicatorGroup(indicators.tsmc, tsmcScore, 11)}
+            </div>
+        </div>
+        
+        <!-- 操作建議表 -->
+        <div class="card">
+            <div class="card-title">📋 金字塔做空策略對照表</div>
+            <table class="action-table">
+                <tr>
+                    <th>階段</th>
+                    <th>條件</th>
+                    <th>建議部位</th>
+                    <th>停損</th>
+                    <th>歷史勝率</th>
+                    <th>狀態</th>
+                </tr>
+                <tr class="action-row ${rec.level === 'wait' || rec.level === 'watch' ? 'current' : ''}">
+                    <td>觀察期</td>
+                    <td>過熱分數 ≥ 3</td>
+                    <td>0%</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>${overheatScore >= 3 ? '✓' : '-'}</td>
+                </tr>
+                <tr class="action-row ${rec.level === 'prepare' ? 'current' : ''}">
+                    <td>準備期</td>
+                    <td>過熱分數 ≥ 5</td>
+                    <td>0%</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>${overheatScore >= 5 ? '✓' : '-'}</td>
+                </tr>
+                <tr class="action-row ${rec.level === 'trial' ? 'current' : ''}">
+                    <td>試單期</td>
+                    <td>過熱≥5 + 空方訊號≥6</td>
+                    <td>10%</td>
+                    <td>進場+3%</td>
+                    <td>~45%</td>
+                    <td>${overheatScore >= 5 && shortScore >= 6 ? '✓' : '-'}</td>
+                </tr>
+                <tr class="action-row ${rec.level === 'build' ? 'current' : ''}">
+                    <td>建倉期</td>
+                    <td>跌破20日均 + 空方≥8</td>
+                    <td>30%</td>
+                    <td>20均+2%</td>
+                    <td>~46%</td>
+                    <td>${d.close < d.ma20 && shortScore >= 8 ? '✓' : '-'}</td>
+                </tr>
+                <tr class="action-row ${rec.level === 'add' ? 'current' : ''}">
+                    <td>加碼期</td>
+                    <td>跌破60日均 + 空方≥12</td>
+                    <td>50%</td>
+                    <td>60均+2%</td>
+                    <td>~47%</td>
+                    <td>${d.close < d.ma60 && shortScore >= 12 ? '✓' : '-'}</td>
+                </tr>
+                <tr class="action-row ${rec.level === 'heavy' ? 'current' : ''}">
+                    <td>重壓期</td>
+                    <td>破60均 + 台積破60均 + 空方≥16</td>
+                    <td>80%</td>
+                    <td>高點+1%</td>
+                    <td>~48%</td>
+                    <td>${d.close < d.ma60 && d.tsmcClose < d.tsmcMa60 && shortScore >= 16 ? '✓' : '-'}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <!-- 走勢圖 -->
+        <div class="card">
+            <div class="card-title">📈 近期走勢與均線</div>
+            <div class="chart-container">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('mainContent').innerHTML = html;
+    renderChart();
+}
+
+function renderIndicatorGroup(indicators, score, maxScore) {
+    let html = '<div class="indicator-group">';
+    
+    indicators.forEach(ind => {
+        let displayValue = typeof ind.value === 'number' ? 
+            (Math.abs(ind.value) > 1000 ? (ind.value/1e8).toFixed(1) + '億' : ind.value.toFixed(2)) : 
+            ind.value;
+        
+        html += `
+            <div class="indicator-item ${ind.check ? 'triggered' : ''}">
+                <span class="ind-name">${ind.name}</span>
+                <span class="ind-value">${displayValue}</span>
+                <span class="ind-weight">${ind.check ? '+' + ind.weight : ''}</span>
+                <span class="ind-status">${ind.check ? '🔴' : '⚪'}</span>
+            </div>
+        `;
+    });
+    
+    let pct = Math.min(100, (score / maxScore) * 100);
+    let fillClass = pct >= 70 ? 'extreme' : pct >= 50 ? 'high' : pct >= 30 ? 'medium' : 'low';
+    
+    html += `
+        <div class="score-bar">
+            <div class="score-fill ${fillClass}" style="width:${pct}%"></div>
+        </div>
+    </div>`;
+    
+    return html;
+}
+
+function renderChart() {
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    const last40 = processed.slice(-40);
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: last40.map(d => d.date.slice(5)),
+            datasets: [
+                {
+                    label: '加權指數',
+                    data: last40.map(d => d.close),
+                    borderColor: '#48dbfb',
+                    backgroundColor: 'rgba(72,219,251,0.1)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: '20日均',
+                    data: last40.map(d => d.ma20),
+                    borderColor: '#feca57',
+                    borderDash: [5,5],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0
+                },
+                {
+                    label: '60日均',
+                    data: last40.map(d => d.ma60),
+                    borderColor: '#ff6b6b',
+                    borderDash: [5,5],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: { legend: { labels: { color: '#888' } } },
+            scales: {
+                x: { ticks: { color: '#666' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: { ticks: { color: '#666' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            }
+        }
+    });
+}
+</script>
 </body>
 </html>
