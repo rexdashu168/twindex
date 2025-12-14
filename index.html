@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>台股做空訊號評分系統</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -110,13 +111,6 @@
         .ind-weight { min-width: 40px; text-align: center; font-size: 0.8em; color: #666; }
         .ind-status { min-width: 30px; text-align: center; font-size: 1.2em; }
         
-        .score-bar { height: 12px; background: #222; border-radius: 6px; overflow: hidden; margin-top: 10px; }
-        .score-fill { height: 100%; border-radius: 6px; }
-        .score-fill.low { background: linear-gradient(90deg, #26de81, #20bf6b); }
-        .score-fill.medium { background: linear-gradient(90deg, #feca57, #ff9f43); }
-        .score-fill.high { background: linear-gradient(90deg, #ff6b6b, #ee5a24); }
-        .score-fill.extreme { background: linear-gradient(90deg, #eb2f06, #ff0000); }
-        
         .price-box { text-align: center; padding: 15px; }
         .price-main { font-size: 2.2em; font-weight: bold; }
         .price-change { font-size: 1.1em; margin-top: 5px; }
@@ -177,11 +171,11 @@
 
 <script>
 // ============================================================
-// GitHub Raw URL 設定
+// GitHub Raw URL 設定 - xlsx 檔案
 // ============================================================
 const CONFIG = {
-    TXINDEX_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/TXINDEX.csv',
-    TSMC_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/2330.csv',
+    TXINDEX_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/TXINDEX.xlsx',
+    TSMC_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/2330.xlsx',
 };
 
 let processed = [];
@@ -190,13 +184,10 @@ window.onload = () => loadAllData();
 
 async function loadAllData() {
     try {
-        const [txText, tsmcText] = await Promise.all([
-            fetchWithEncoding(CONFIG.TXINDEX_URL),
-            fetchWithEncoding(CONFIG.TSMC_URL)
+        const [txData, tsmcData] = await Promise.all([
+            fetchXLSX(CONFIG.TXINDEX_URL),
+            fetchXLSX(CONFIG.TSMC_URL)
         ]);
-        
-        const txData = parseCSV(txText);
-        const tsmcData = parseCSV(tsmcText);
         
         processData(txData, tsmcData);
     } catch (err) {
@@ -211,51 +202,23 @@ async function loadAllData() {
     }
 }
 
-// 自動偵測編碼並載入
-async function fetchWithEncoding(url) {
+// 載入並解析 XLSX
+async function fetchXLSX(url) {
     const response = await fetch(url);
+    if (!response.ok) throw new Error('無法載入檔案: ' + url);
+    
     const buffer = await response.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, { raw: false });
     
-    // 嘗試 UTF-8
-    let text = new TextDecoder('utf-8').decode(buffer);
-    
-    // 如果有亂碼，改用 Big5
-    if (text.includes('�') || text.includes('\ufffd')) {
-        text = new TextDecoder('big5').decode(buffer);
-    }
-    
-    return text;
-}
-
-// 解析 CSV
-function parseCSV(text) {
-    const lines = text.trim().split(/\r?\n/);
-    const headers = lines[0].split(',');
-    
-    return lines.slice(1).map(line => {
-        const values = line.split(',');
-        const obj = {};
-        headers.forEach((h, i) => {
-            obj[h.trim()] = values[i]?.trim() || '';
-        });
-        return obj;
-    }).filter(row => {
-        const date = row['時間'] || row['日期'] || row['Date'];
-        return date && date.length > 0;
-    });
-}
-
-// 取得欄位值
-function getField(row, ...names) {
-    for (let n of names) {
-        if (row[n] !== undefined && row[n] !== '' && row[n] !== 'N/A') return row[n];
-    }
-    return null;
+    return data;
 }
 
 // 解析數字（處理億、萬等單位）
 function parseNum(v) {
-    if (v === null || v === undefined || v === '' || v === 'N/A') return NaN;
+    if (v === null || v === undefined || v === '' || v === 'NaN' || v === 'N/A') return NaN;
     let str = String(v).replace(/,/g, '');
     
     if (str.includes('億')) {
@@ -265,6 +228,17 @@ function parseNum(v) {
         return parseFloat(str.replace('萬', '')) * 10000;
     }
     return parseFloat(str);
+}
+
+// 解析日期
+function parseDate(v) {
+    if (!v) return null;
+    // 處理 Excel 日期格式
+    if (typeof v === 'number') {
+        const date = new Date((v - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0].replace(/-/g, '/');
+    }
+    return String(v).split(' ')[0]; // 取日期部分
 }
 
 function calcMA(data, field, period) {
@@ -314,22 +288,22 @@ function calcMACD(data, field) {
 function processData(txRaw, tsmcRaw) {
     // 整理加權指數
     let txData = txRaw.map(row => ({
-        date: getField(row, '時間', '日期', 'Date'),
-        close: parseNum(getField(row, '收盤價', 'Close')),
-        open: parseNum(getField(row, '開盤價', 'Open')),
-        high: parseNum(getField(row, '最高價', 'High')),
-        low: parseNum(getField(row, '最低價', 'Low')),
-        volume: parseNum(getField(row, '成交量', 'Volume')),
-        foreign: parseNum(getField(row, '買賣超(元)', '外資買賣超')),
-        trust: parseNum(getField(row, '買賣超(元).1', '投信買賣超')),
-        margin: parseNum(getField(row, '融資(元)', '融資餘額'))
+        date: parseDate(row['時間']),
+        close: parseNum(row['收盤價']),
+        open: parseNum(row['開盤價']),
+        high: parseNum(row['最高價']),
+        low: parseNum(row['最低價']),
+        volume: parseNum(row['成交量']),
+        foreign: parseNum(row['買賣超(元)']),      // 外資買賣超
+        trust: parseNum(row['買賣超(元).1']),      // 投信買賣超
+        margin: parseNum(row['融資(元)'])          // 融資餘額
     })).filter(d => !isNaN(d.close) && d.date);
     
     // 整理台積電
     let tsmcMap = {};
     tsmcRaw.forEach(row => {
-        let date = getField(row, '時間', '日期', 'Date');
-        let close = parseNum(getField(row, '收盤價', 'Close'));
+        let date = parseDate(row['時間']);
+        let close = parseNum(row['收盤價']);
         if (date && !isNaN(close)) {
             tsmcMap[date] = close;
         }
@@ -350,7 +324,6 @@ function processData(txRaw, tsmcRaw) {
     
     // 計算指標
     let ma5 = calcMA(merged, 'close', 5);
-    let ma10 = calcMA(merged, 'close', 10);
     let ma20 = calcMA(merged, 'close', 20);
     let ma60 = calcMA(merged, 'close', 60);
     let rsi = calcRSI(merged, 'close', 14);
