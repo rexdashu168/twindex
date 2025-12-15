@@ -60,7 +60,7 @@
         .margin-stat { text-align: center; padding: 6px; background: rgba(255,255,255,0.02); border-radius: 5px; }
         .margin-stat .stat-value { font-size: 1em; font-weight: bold; }
         .margin-stat .stat-label { font-size: 0.65em; color: #888; }
-        .future-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+        .future-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
         .future-stat { text-align: center; padding: 8px 4px; background: rgba(255,255,255,0.02); border-radius: 5px; }
         .future-stat .stat-value { font-size: 1.1em; font-weight: bold; }
         .future-stat .stat-label { font-size: 0.6em; color: #888; }
@@ -74,6 +74,7 @@
         .spinner { width: 35px; height: 35px; border: 3px solid #333; border-top-color: #ff6b6b; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .error-box { background: rgba(255,107,107,0.2); border: 1px solid #ff6b6b; padding: 15px; border-radius: 8px; text-align: center; }
+        .status-box { background: rgba(255,193,7,0.1); border: 1px solid #ffc107; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 0.8em; }
         footer { text-align: center; padding: 10px; color: #555; font-size: 0.65em; margin-top: 12px; }
         @media (max-width: 768px) { 
             .grid, .grid-2, .grid-3 { grid-template-columns: 1fr; } 
@@ -93,7 +94,7 @@
         <p class="subtitle">均線系統 + 融資循環 + 期貨籌碼 + OTC領先 + 台積電</p>
         <p class="subtitle">資料日期：<span id="dataDate">載入中...</span></p>
     </header>
-    <div id="mainContent"><div class="loading"><div class="spinner"></div><p>正在載入資料...</p></div></div>
+    <div id="mainContent"><div class="loading"><div class="spinner"></div><p>正在載入資料...</p><p id="loadStatus" style="margin-top:10px;font-size:0.8em;color:#888;"></p></div></div>
     <footer><p>⚠️ 本系統僅供資料整理參考，不構成投資建議。做空風險極高，投資決策請自行判斷。</p></footer>
 </div>
 <script>
@@ -104,25 +105,43 @@ const CONFIG = {
     FUTURE_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/future_index.xlsx',
 };
 let processed = [];
+let hasFutureData = false;
 window.onload = () => loadAllData();
 
 async function loadAllData() {
+const statusEl = document.getElementById(‘loadStatus’);
 try {
-const [txData, otcData, tsmcData, futureData] = await Promise.all([
-fetchXLSX(CONFIG.TXINDEX_URL),
-fetchXLSX(CONFIG.OTC_URL),
-fetchXLSX(CONFIG.TSMC_URL),
-fetchXLSX(CONFIG.FUTURE_URL)
-]);
-processData(txData, otcData, tsmcData, futureData);
+statusEl.textContent = ‘載入加權指數…’;
+const txData = await fetchXLSX(CONFIG.TXINDEX_URL);
+
+```
+    statusEl.textContent = '載入OTC指數...';
+    const otcData = await fetchXLSX(CONFIG.OTC_URL);
+    
+    statusEl.textContent = '載入台積電...';
+    const tsmcData = await fetchXLSX(CONFIG.TSMC_URL);
+    
+    let futureData = null;
+    try {
+        statusEl.textContent = '載入期貨資料...';
+        futureData = await fetchXLSX(CONFIG.FUTURE_URL);
+        hasFutureData = true;
+    } catch (e) {
+        console.log('期貨資料載入失敗，使用基本模式', e);
+        hasFutureData = false;
+    }
+    
+    processData(txData, otcData, tsmcData, futureData);
 } catch (err) {
-document.getElementById(‘mainContent’).innerHTML = ‘<div class="error-box"><h3>❌ 載入失敗</h3><p style="margin-top:8px;color:#aaa;">’+err.message+’</p><button onclick="loadAllData()" style="margin-top:12px;padding:8px 20px;background:#667eea;border:none;border-radius:5px;color:#fff;cursor:pointer;">重試</button></div>’;
+    document.getElementById('mainContent').innerHTML = '<div class="error-box"><h3>❌ 載入失敗</h3><p style="margin-top:8px;color:#aaa;">'+err.message+'</p><button onclick="loadAllData()" style="margin-top:12px;padding:8px 20px;background:#667eea;border:none;border-radius:5px;color:#fff;cursor:pointer;">重試</button></div>';
 }
+```
+
 }
 
 async function fetchXLSX(url) {
 const response = await fetch(url);
-if (!response.ok) throw new Error(’無法載入: ’ + url);
+if (!response.ok) throw new Error(‘無法載入: ’ + url.split(’/’).pop());
 const buffer = await response.arrayBuffer();
 const workbook = XLSX.read(buffer, { type: ‘array’ });
 return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
@@ -189,30 +208,40 @@ tsmcRaw.forEach(row => {
     let date = parseDate(row['時間']); 
     if (date) tsmcMap[date] = parseNum(row['收盤價']); 
 });
-futureRaw.forEach(row => {
-    let date = parseDate(row['時間']);
-    if (date) {
-        futureMap[date] = {
-            vix: parseNum(row['VIX(恐慌指數)']),
-            foreignOI: parseNum(row['外資及陸資未平倉淨口']),
-            instOI: parseNum(row['三大法人未平倉淨口']),
-            top10OI: parseNum(row['前十大交易人淨口']),
-            oi: parseNum(row['未平倉'])
-        };
-    }
-});
 
-let merged = txData.map(tx => ({ 
-    ...tx, 
-    otcClose: otcMap[tx.date] || NaN, 
-    otcMargin: otcMarginMap[tx.date] || NaN,
-    tsmcClose: tsmcMap[tx.date] || NaN,
-    ...(futureMap[tx.date] || {})
-})).filter(d => !isNaN(d.otcClose) && !isNaN(d.tsmcClose) && !isNaN(d.vix));
+if (futureRaw) {
+    futureRaw.forEach(row => {
+        let date = parseDate(row['時間']);
+        if (date) {
+            futureMap[date] = {
+                vix: parseNum(row['VIX(恐慌指數)']),
+                foreignOI: parseNum(row['外資及陸資未平倉淨口']),
+                instOI: parseNum(row['三大法人未平倉淨口']),
+                top10OI: parseNum(row['前十大交易人淨口']),
+                oi: parseNum(row['未平倉'])
+            };
+        }
+    });
+}
+
+let merged = txData.map(tx => {
+    let base = { 
+        ...tx, 
+        otcClose: otcMap[tx.date] || NaN, 
+        otcMargin: otcMarginMap[tx.date] || NaN,
+        tsmcClose: tsmcMap[tx.date] || NaN,
+        vix: 20, foreignOI: 0, instOI: 0
+    };
+    if (futureMap[tx.date]) {
+        base.vix = futureMap[tx.date].vix || 20;
+        base.foreignOI = futureMap[tx.date].foreignOI || 0;
+        base.instOI = futureMap[tx.date].instOI || 0;
+    }
+    return base;
+}).filter(d => !isNaN(d.otcClose) && !isNaN(d.tsmcClose));
 
 merged = merged.slice(-150);
 
-// 均線
 let txMa5 = calcMA(merged, 'close', 5), txMa10 = calcMA(merged, 'close', 10), txMa20 = calcMA(merged, 'close', 20), txMa60 = calcMA(merged, 'close', 60);
 let otcMa10 = calcMA(merged, 'otcClose', 10), otcMa20 = calcMA(merged, 'otcClose', 20), otcMa60 = calcMA(merged, 'otcClose', 60);
 let tsmcMa10 = calcMA(merged, 'tsmcClose', 10), tsmcMa20 = calcMA(merged, 'tsmcClose', 20), tsmcMa60 = calcMA(merged, 'tsmcClose', 60);
@@ -336,7 +365,7 @@ const indicators = {
 
 let overheatScore = indicators.overheat.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
 let marginScore = indicators.margin.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
-let futureScore = indicators.future.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let futureScore = hasFutureData ? indicators.future.filter(i => i.check).reduce((s,i) => s + i.weight, 0) : 0;
 let ma10Score = indicators.ma10.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
 let priceScore = indicators.price.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
 let chipScore = indicators.chip.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
@@ -381,10 +410,12 @@ function renderMA(close, ma5, ma10, ma20, ma60) {
 
 let html = '<div class="recommendation-box '+rec.class+'"><div class="rec-title">📌 今日操作建議</div><div class="rec-action">'+rec.action+'</div><div class="rec-detail">'+rec.detail+'</div></div>';
 
+if (!hasFutureData) html += '<div class="status-box">⚠️ 期貨資料未載入，請確認 future_index.xlsx 已上傳到GitHub</div>';
+
 if (bestShortSignal) html += '<div class="alert-box alert-red"><h4 style="color:#ff4444;">🚨 最強做空訊號觸發！</h4><p>指數10日跌'+d.tx10dRet.toFixed(1)+'% + 融資10日增'+d.margin10dChg.toFixed(1)+'% → 歷史10日跌率60.7%</p></div>';
 if (txBelow10 && !txBelow20) html += '<div class="alert-box alert-orange"><h4 style="color:#ff9800;">⚠️ 高檔轉弱</h4><p>破10均但還在20均上，84%機率10天內破20均</p></div>';
 if (marginPhase === 2) html += '<div class="alert-box alert-yellow"><h4 style="color:#ffc107;">⚠️ 融資階段2</h4><p>指數跌+融資增，散戶不認輸</p></div>';
-if (d.foreignOI5dChg < -10000) html += '<div class="alert-box alert-yellow"><h4 style="color:#ffc107;">⚠️ 外資期貨減碼</h4><p>5日減碼'+(Math.abs(d.foreignOI5dChg)/1000).toFixed(1)+'K口，歷史10日跌率48%</p></div>';
+if (hasFutureData && d.foreignOI5dChg < -10000) html += '<div class="alert-box alert-yellow"><h4 style="color:#ffc107;">⚠️ 外資期貨減碼</h4><p>5日減碼'+(Math.abs(d.foreignOI5dChg)/1000).toFixed(1)+'K口，歷史10日跌率48%</p></div>';
 
 html += '<div class="score-display">'+
     '<div class="score-item"><div class="score-value" style="color:'+(overheatScore>=3?'#ff6b6b':'#feca57')+'">'+overheatScore+'</div><div class="score-label">過熱</div></div>'+
@@ -395,15 +426,17 @@ html += '<div class="score-display">'+
     '<div class="score-item"><div class="score-value" style="color:'+(winRate>=55?'#ff0000':winRate>=48?'#ff6b6b':'#feca57')+'">'+winRate.toFixed(1)+'%</div><div class="score-label">歷史跌率</div></div></div>';
 
 // 期貨籌碼
-let foreignView = d.foreignOI > 10000 ? 'bullish' : d.foreignOI < -10000 ? 'bearish' : '';
-let instView = d.instOI > 5000 ? 'bullish' : d.instOI < -5000 ? 'bearish' : '';
-html += '<div class="card"><div class="card-title">📊 期貨籌碼</div>'+
-    '<div class="future-stats">'+
-    '<div class="future-stat"><div class="stat-value">'+d.vix.toFixed(2)+'</div><div class="stat-label">VIX恐慌</div></div>'+
-    '<div class="future-stat '+foreignView+'"><div class="stat-value">'+(d.foreignOI/1000).toFixed(1)+'K</div><div class="stat-label">外資淨口</div></div>'+
-    '<div class="future-stat '+instView+'"><div class="stat-value">'+(d.instOI/1000).toFixed(1)+'K</div><div class="stat-label">法人淨口</div></div>'+
-    '<div class="future-stat '+(d.foreignOI5dChg<-5000?'bearish':'')+'"><div class="stat-value">'+(d.foreignOI5dChg/1000).toFixed(1)+'K</div><div class="stat-label">外資5日變化</div></div>'+
-    '</div></div>';
+if (hasFutureData) {
+    let foreignView = d.foreignOI > 10000 ? 'bullish' : d.foreignOI < -10000 ? 'bearish' : '';
+    let instView = d.instOI > 5000 ? 'bullish' : d.instOI < -5000 ? 'bearish' : '';
+    html += '<div class="card"><div class="card-title">📊 期貨籌碼</div>'+
+        '<div class="future-stats">'+
+        '<div class="future-stat"><div class="stat-value">'+d.vix.toFixed(2)+'</div><div class="stat-label">VIX恐慌</div></div>'+
+        '<div class="future-stat '+foreignView+'"><div class="stat-value">'+(d.foreignOI/1000).toFixed(1)+'K</div><div class="stat-label">外資淨口</div></div>'+
+        '<div class="future-stat '+instView+'"><div class="stat-value">'+(d.instOI/1000).toFixed(1)+'K</div><div class="stat-label">法人淨口</div></div>'+
+        '<div class="future-stat '+(d.foreignOI5dChg<-5000?'bearish':'')+'"><div class="stat-value">'+(d.foreignOI5dChg/1000).toFixed(1)+'K</div><div class="stat-label">外資5日變化</div></div>'+
+        '</div></div>';
+}
 
 // 融資四階段
 html += '<div class="card"><div class="card-title">💰 融資循環</div>'+
