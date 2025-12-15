@@ -75,7 +75,6 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .error-box { background: rgba(255,107,107,0.2); border: 1px solid #ff6b6b; padding: 15px; border-radius: 8px; text-align: center; }
         .status-box { background: rgba(255,193,7,0.1); border: 1px solid #ffc107; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 0.8em; }
-        .debug-box { background: rgba(100,100,100,0.2); border: 1px solid #666; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 0.75em; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
         footer { text-align: center; padding: 10px; color: #555; font-size: 0.65em; margin-top: 12px; }
         @media (max-width: 768px) { .grid, .grid-2, .grid-3 { grid-template-columns: 1fr; } .score-display { gap: 5px; } .score-item { min-width: 55px; padding: 7px 5px; } .score-value { font-size: 1.3em; } .rec-action { font-size: 1.2em; } .phase-box { grid-template-columns: repeat(2, 1fr); } .future-stats { grid-template-columns: repeat(2, 1fr); } }
     </style>
@@ -94,64 +93,38 @@
             <p id="loadStatus" style="margin-top:10px;font-size:0.8em;color:#888;"></p>
         </div>
     </div>
-    <div id="debugLog" class="debug-box" style="display:none;"></div>
     <footer><p>本系統僅供資料整理參考，不構成投資建議。做空風險極高，投資決策請自行判斷。</p></footer>
 </div>
 <script>
 (function() {
-    var debugLog = [];
-    function log(msg) {
-        debugLog.push(new Date().toLocaleTimeString() + ": " + msg);
-        console.log(msg);
-        var el = document.getElementById("debugLog");
-        if (el) {
-            el.style.display = "block";
-            el.textContent = debugLog.join("\n");
-        }
-    }
+    var CONFIG = {
+        TXINDEX_URL: "https://raw.githubusercontent.com/rexdashu168/twindex/main/TXINDEX.xlsx",
+        OTC_URL: "https://raw.githubusercontent.com/rexdashu168/twindex/main/OTCindex.xlsx",
+        TSMC_URL: "https://raw.githubusercontent.com/rexdashu168/twindex/main/2330.xlsx",
+        FUTURE_URL: "https://raw.githubusercontent.com/rexdashu168/twindex/main/future_index.xlsx"
+    };
+    var processed = [];
+    var hasFutureData = false;
 
 ```
-var CONFIG = {
-    TXINDEX_URL: "https://raw.githubusercontent.com/rexdashu168/twindex/main/TXINDEX.xlsx",
-    OTC_URL: "https://raw.githubusercontent.com/rexdashu168/twindex/main/OTCindex.xlsx",
-    TSMC_URL: "https://raw.githubusercontent.com/rexdashu168/twindex/main/2330.xlsx",
-    FUTURE_URL: "https://raw.githubusercontent.com/rexdashu168/twindex/main/future_index.xlsx"
-};
-var processed = [];
-var hasFutureData = false;
-
-window.onerror = function(msg, url, line, col, error) {
-    log("JS Error: " + msg + " at line " + line);
+window.onerror = function(msg, url, line) {
+    console.error("Error: " + msg + " at line " + line);
     return false;
 };
 
 window.onload = function() {
-    log("頁面載入完成，開始初始化...");
-    
     if (typeof XLSX === "undefined") {
-        log("錯誤: XLSX 函式庫未載入");
-        showError("XLSX 函式庫載入失敗，請檢查網路連線");
+        showError("XLSX 函式庫載入失敗");
         return;
     }
-    log("XLSX 函式庫已載入");
-    
-    if (typeof Chart === "undefined") {
-        log("警告: Chart.js 未載入");
-    } else {
-        log("Chart.js 已載入");
-    }
-    
     loadAllData();
 };
 
 function showError(msg) {
-    document.getElementById("mainContent").innerHTML = 
-        '<div class="error-box"><h3>載入失敗</h3><p style="margin-top:8px;color:#aaa;">' + msg + 
-        '</p><button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;background:#667eea;border:none;border-radius:5px;color:#fff;cursor:pointer;">重試</button></div>';
+    document.getElementById("mainContent").innerHTML = "<div class=\"error-box\"><h3>載入失敗</h3><p style=\"margin-top:8px;color:#aaa;\">" + msg + "</p><button onclick=\"location.reload()\" style=\"margin-top:12px;padding:8px 20px;background:#667eea;border:none;border-radius:5px;color:#fff;cursor:pointer;\">重試</button></div>";
 }
 
 function updateStatus(msg) {
-    log(msg);
     var el = document.getElementById("loadStatus");
     if (el) el.textContent = msg;
 }
@@ -159,73 +132,32 @@ function updateStatus(msg) {
 async function loadAllData() {
     try {
         updateStatus("載入加權指數...");
-        var txData = await fetchXLSX(CONFIG.TXINDEX_URL, "TXINDEX");
-        
+        var txData = await fetchXLSX(CONFIG.TXINDEX_URL);
         updateStatus("載入OTC指數...");
-        var otcData = await fetchXLSX(CONFIG.OTC_URL, "OTC");
-        
+        var otcData = await fetchXLSX(CONFIG.OTC_URL);
         updateStatus("載入台積電...");
-        var tsmcData = await fetchXLSX(CONFIG.TSMC_URL, "2330");
-        
+        var tsmcData = await fetchXLSX(CONFIG.TSMC_URL);
         var futureData = null;
         try {
             updateStatus("載入期貨資料...");
-            futureData = await fetchXLSX(CONFIG.FUTURE_URL, "Future");
+            futureData = await fetchXLSX(CONFIG.FUTURE_URL);
             hasFutureData = true;
-            log("期貨資料載入成功");
         } catch (e) {
-            log("期貨資料載入失敗: " + e.message);
             hasFutureData = false;
         }
-        
         updateStatus("處理資料中...");
         processData(txData, otcData, tsmcData, futureData);
-        
     } catch (err) {
-        log("載入錯誤: " + err.message);
         showError(err.message);
     }
 }
 
-async function fetchXLSX(url, name) {
-    log("開始載入: " + name + " from " + url);
-    
-    var response;
-    try {
-        response = await fetch(url);
-    } catch (e) {
-        throw new Error(name + " 網路請求失敗: " + e.message);
-    }
-    
-    log(name + " HTTP狀態: " + response.status);
-    
-    if (!response.ok) {
-        throw new Error(name + " 載入失敗 (HTTP " + response.status + ")");
-    }
-    
-    var buffer;
-    try {
-        buffer = await response.arrayBuffer();
-    } catch (e) {
-        throw new Error(name + " 讀取資料失敗: " + e.message);
-    }
-    
-    log(name + " 資料大小: " + buffer.byteLength + " bytes");
-    
-    var workbook;
-    try {
-        workbook = XLSX.read(buffer, { type: "array" });
-    } catch (e) {
-        throw new Error(name + " Excel解析失敗: " + e.message);
-    }
-    
-    var sheetName = workbook.SheetNames[0];
-    log(name + " 工作表: " + sheetName);
-    
-    var data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false });
-    log(name + " 資料筆數: " + data.length);
-    
-    return data;
+async function fetchXLSX(url) {
+    var response = await fetch(url);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    var buffer = await response.arrayBuffer();
+    var workbook = XLSX.read(buffer, { type: "array" });
+    return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
 }
 
 function parseNum(v) {
@@ -248,50 +180,31 @@ function parseDate(v) {
 function calcMA(data, field, period) {
     var result = [];
     for (var i = 0; i < data.length; i++) {
-        if (i < period - 1) {
-            result.push(NaN);
-        } else {
-            var sum = 0;
-            for (var j = 0; j < period; j++) {
-                sum += data[i - j][field];
-            }
-            result.push(sum / period);
-        }
+        if (i < period - 1) { result.push(NaN); continue; }
+        var sum = 0;
+        for (var j = 0; j < period; j++) sum += data[i - j][field];
+        result.push(sum / period);
     }
     return result;
 }
 
 function calcRSI(data, field, period) {
-    var result = [];
-    var gains = [];
-    var losses = [];
+    var result = [], gains = [], losses = [];
     for (var i = 0; i < data.length; i++) {
-        if (i === 0) {
-            result.push(50);
-            continue;
-        }
+        if (i === 0) { result.push(50); continue; }
         var change = data[i][field] - data[i-1][field];
         gains.push(change > 0 ? change : 0);
         losses.push(change < 0 ? -change : 0);
-        if (i < period) {
-            result.push(50);
-        } else {
-            var sumG = 0, sumL = 0;
-            for (var j = gains.length - period; j < gains.length; j++) {
-                sumG += gains[j];
-                sumL += losses[j];
-            }
-            var avgG = sumG / period;
-            var avgL = sumL / period;
-            result.push(avgL === 0 ? 100 : 100 - (100 / (1 + avgG/avgL)));
-        }
+        if (i < period) { result.push(50); continue; }
+        var sumG = 0, sumL = 0;
+        for (var j = gains.length - period; j < gains.length; j++) { sumG += gains[j]; sumL += losses[j]; }
+        var avgG = sumG / period, avgL = sumL / period;
+        result.push(avgL === 0 ? 100 : 100 - (100 / (1 + avgG/avgL)));
     }
     return result;
 }
 
 function processData(txRaw, otcRaw, tsmcRaw, futureRaw) {
-    log("開始處理資料...");
-    
     var txData = [];
     for (var i = 0; i < txRaw.length; i++) {
         var row = txRaw[i];
@@ -303,14 +216,10 @@ function processData(txRaw, otcRaw, tsmcRaw, futureRaw) {
             margin: parseNum(row["融資(元)"]),
             marginChg: parseNum(row["差額(元)"])
         };
-        if (!isNaN(item.close) && item.date) {
-            txData.push(item);
-        }
+        if (!isNaN(item.close) && item.date) txData.push(item);
     }
-    log("加權資料處理完成: " + txData.length + " 筆");
 
-    var otcMap = {};
-    var otcMarginMap = {};
+    var otcMap = {}, otcMarginMap = {};
     for (var i = 0; i < otcRaw.length; i++) {
         var row = otcRaw[i];
         var date = parseDate(row["時間"]);
@@ -319,17 +228,13 @@ function processData(txRaw, otcRaw, tsmcRaw, futureRaw) {
             otcMarginMap[date] = parseNum(row["融資(元)"]);
         }
     }
-    log("OTC資料處理完成");
 
     var tsmcMap = {};
     for (var i = 0; i < tsmcRaw.length; i++) {
         var row = tsmcRaw[i];
         var date = parseDate(row["時間"]);
-        if (date) {
-            tsmcMap[date] = parseNum(row["收盤價"]);
-        }
+        if (date) tsmcMap[date] = parseNum(row["收盤價"]);
     }
-    log("台積電資料處理完成");
 
     var futureMap = {};
     if (futureRaw) {
@@ -344,7 +249,6 @@ function processData(txRaw, otcRaw, tsmcRaw, futureRaw) {
                 };
             }
         }
-        log("期貨資料處理完成");
     }
 
     var merged = [];
@@ -352,36 +256,21 @@ function processData(txRaw, otcRaw, tsmcRaw, futureRaw) {
         var tx = txData[i];
         var otcClose = otcMap[tx.date];
         var tsmcClose = tsmcMap[tx.date];
-        
         if (isNaN(otcClose) || isNaN(tsmcClose)) continue;
-        
         var item = {
-            date: tx.date,
-            close: tx.close,
-            foreign: tx.foreign,
-            trust: tx.trust,
-            margin: tx.margin,
-            marginChg: tx.marginChg,
-            otcClose: otcClose,
-            otcMargin: otcMarginMap[tx.date] || NaN,
-            tsmcClose: tsmcClose,
-            vix: 20,
-            foreignOI: 0,
-            instOI: 0
+            date: tx.date, close: tx.close, foreign: tx.foreign, trust: tx.trust,
+            margin: tx.margin, marginChg: tx.marginChg,
+            otcClose: otcClose, otcMargin: otcMarginMap[tx.date] || NaN, tsmcClose: tsmcClose,
+            vix: 20, foreignOI: 0, instOI: 0
         };
-        
         if (futureMap[tx.date]) {
             item.vix = futureMap[tx.date].vix || 20;
             item.foreignOI = futureMap[tx.date].foreignOI || 0;
             item.instOI = futureMap[tx.date].instOI || 0;
         }
-        
         merged.push(item);
     }
-    
-    log("合併資料: " + merged.length + " 筆");
     merged = merged.slice(-150);
-    log("取最近150筆: " + merged.length + " 筆");
 
     var txMa5 = calcMA(merged, "close", 5);
     var txMa10 = calcMA(merged, "close", 10);
@@ -394,7 +283,6 @@ function processData(txRaw, otcRaw, tsmcRaw, futureRaw) {
     var tsmcMa20 = calcMA(merged, "tsmcClose", 20);
     var tsmcMa60 = calcMA(merged, "tsmcClose", 60);
     var txRsi = calcRSI(merged, "close", 14);
-    log("均線計算完成");
 
     processed = [];
     for (var i = 0; i < merged.length; i++) {
@@ -403,89 +291,39 @@ function processData(txRaw, otcRaw, tsmcRaw, futureRaw) {
         var otcRet = i > 0 ? (row.otcClose / merged[i-1].otcClose - 1) * 100 : 0;
         var tsmcRet = i > 0 ? (row.tsmcClose / merged[i-1].tsmcClose - 1) * 100 : 0;
         var txBias20 = txMa20[i] ? (row.close / txMa20[i] - 1) * 100 : 0;
-
-        var txDownDays = 0;
-        for (var j = i; j > 0 && merged[j].close < merged[j-1].close; j--) txDownDays++;
-        
-        var foreignSellDays = 0;
-        for (var j = i; j >= 0 && merged[j].foreign < 0; j--) foreignSellDays++;
-        
-        var marginUpDays = 0;
-        for (var j = i; j >= 0 && merged[j].marginChg > 0; j--) marginUpDays++;
-
+        var txDownDays = 0; for (var j = i; j > 0 && merged[j].close < merged[j-1].close; j--) txDownDays++;
+        var foreignSellDays = 0; for (var j = i; j >= 0 && merged[j].foreign < 0; j--) foreignSellDays++;
+        var marginUpDays = 0; for (var j = i; j >= 0 && merged[j].marginChg > 0; j--) marginUpDays++;
         var margin10dChg = i >= 10 && merged[i-10].margin ? (row.margin / merged[i-10].margin - 1) * 100 : 0;
         var otcMargin10dChg = i >= 10 && merged[i-10].otcMargin ? (row.otcMargin / merged[i-10].otcMargin - 1) * 100 : 0;
         var tx10dRet = i >= 10 ? (row.close / merged[i-10].close - 1) * 100 : 0;
         var foreignOI5dChg = i >= 5 ? row.foreignOI - merged[i-5].foreignOI : 0;
         var gain60 = i >= 60 ? (row.close / merged[i-60].close - 1) * 100 : 0;
-        
-        var high52 = row.close;
-        for (var j = 0; j < Math.min(240, i+1); j++) {
-            if (merged[i-j].close > high52) high52 = merged[i-j].close;
-        }
+        var high52 = row.close; for (var j = 0; j < Math.min(240, i+1); j++) if (merged[i-j].close > high52) high52 = merged[i-j].close;
         var distHigh = (row.close / high52 - 1) * 100;
-        
         var otc5Ret = i >= 5 ? (row.otcClose / merged[i-5].otcClose - 1) * 100 : 0;
         var tx5Ret = i >= 5 ? (row.close / merged[i-5].close - 1) * 100 : 0;
 
         processed.push({
-            date: row.date,
-            txClose: row.close,
-            txRet: txRet,
-            txBias20: txBias20,
-            txRsi: txRsi[i],
-            tx10dRet: tx10dRet,
-            txMa5: txMa5[i],
-            txMa10: txMa10[i],
-            txMa20: txMa20[i],
-            txMa60: txMa60[i],
-            txDownDays: txDownDays,
-            otcClose: row.otcClose,
-            otcRet: otcRet,
-            otcMa10: otcMa10[i],
-            otcMa20: otcMa20[i],
-            otcMa60: otcMa60[i],
-            otcTxGap5: otc5Ret - tx5Ret,
-            tsmcClose: row.tsmcClose,
-            tsmcRet: tsmcRet,
-            tsmcMa10: tsmcMa10[i],
-            tsmcMa20: tsmcMa20[i],
-            tsmcMa60: tsmcMa60[i],
-            foreign: row.foreign,
-            foreignSellDays: foreignSellDays,
-            trust: row.trust,
-            margin: row.margin,
-            marginChg: row.marginChg,
-            marginUpDays: marginUpDays,
-            margin10dChg: margin10dChg,
-            otcMargin10dChg: otcMargin10dChg,
-            vix: row.vix,
-            foreignOI: row.foreignOI,
-            instOI: row.instOI,
-            foreignOI5dChg: foreignOI5dChg,
-            gain60: gain60,
-            distHigh: distHigh
+            date: row.date, txClose: row.close, txRet: txRet, txBias20: txBias20, txRsi: txRsi[i], tx10dRet: tx10dRet,
+            txMa5: txMa5[i], txMa10: txMa10[i], txMa20: txMa20[i], txMa60: txMa60[i], txDownDays: txDownDays,
+            otcClose: row.otcClose, otcRet: otcRet, otcMa10: otcMa10[i], otcMa20: otcMa20[i], otcMa60: otcMa60[i], otcTxGap5: otc5Ret - tx5Ret,
+            tsmcClose: row.tsmcClose, tsmcRet: tsmcRet, tsmcMa10: tsmcMa10[i], tsmcMa20: tsmcMa20[i], tsmcMa60: tsmcMa60[i],
+            foreign: row.foreign, foreignSellDays: foreignSellDays, trust: row.trust,
+            margin: row.margin, marginChg: row.marginChg, marginUpDays: marginUpDays, margin10dChg: margin10dChg, otcMargin10dChg: otcMargin10dChg,
+            vix: row.vix, foreignOI: row.foreignOI, instOI: row.instOI, foreignOI5dChg: foreignOI5dChg, gain60: gain60, distHigh: distHigh
         });
     }
-    
-    log("資料處理完成，開始渲染...");
     renderDashboard();
 }
 
 function renderDashboard() {
     var d = processed[processed.length - 1];
-    log("最新資料日期: " + d.date);
     document.getElementById("dataDate").textContent = d.date;
 
-    var txBelow5 = d.txClose < d.txMa5;
-    var txBelow10 = d.txClose < d.txMa10;
-    var txBelow20 = d.txClose < d.txMa20;
-    var txBelow60 = d.txClose < d.txMa60;
-    var otcBelow10 = d.otcClose < d.otcMa10;
-    var otcBelow20 = d.otcClose < d.otcMa20;
-    var otcBelow60 = d.otcClose < d.otcMa60;
-    var tsmcBelow20 = d.tsmcClose < d.tsmcMa20;
-    var tsmcBelow60 = d.tsmcClose < d.tsmcMa60;
+    var txBelow5 = d.txClose < d.txMa5, txBelow10 = d.txClose < d.txMa10, txBelow20 = d.txClose < d.txMa20, txBelow60 = d.txClose < d.txMa60;
+    var otcBelow10 = d.otcClose < d.otcMa10, otcBelow20 = d.otcClose < d.otcMa20, otcBelow60 = d.otcClose < d.otcMa60;
+    var tsmcBelow20 = d.tsmcClose < d.tsmcMa20, tsmcBelow60 = d.tsmcClose < d.tsmcMa60;
     var allBelow10 = txBelow10 && otcBelow10 && d.tsmcClose < d.tsmcMa10;
     var allBelow60 = txBelow60 && tsmcBelow60;
 
@@ -554,13 +392,7 @@ function renderDashboard() {
         ]
     };
 
-    function sumScore(arr) {
-        var s = 0;
-        for (var i = 0; i < arr.length; i++) {
-            if (arr[i].check) s += arr[i].weight;
-        }
-        return s;
-    }
+    function sumScore(arr) { var s = 0; for (var i = 0; i < arr.length; i++) if (arr[i].check) s += arr[i].weight; return s; }
 
     var overheatScore = sumScore(indicators.overheat);
     var marginScore = sumScore(indicators.margin);
@@ -574,12 +406,7 @@ function renderDashboard() {
 
     var totalTriggered = 0;
     var allKeys = ["overheat", "margin", "future", "ma10", "price", "chip", "tsmc", "otc"];
-    for (var k = 0; k < allKeys.length; k++) {
-        var arr = indicators[allKeys[k]];
-        for (var i = 0; i < arr.length; i++) {
-            if (arr[i].check) totalTriggered++;
-        }
-    }
+    for (var k = 0; k < allKeys.length; k++) { var arr = indicators[allKeys[k]]; for (var i = 0; i < arr.length; i++) if (arr[i].check) totalTriggered++; }
 
     var winRate = 45;
     if (bestShortSignal) winRate = 60.7;
@@ -588,21 +415,13 @@ function renderDashboard() {
     else if (shortScore >= 10) winRate = 47;
 
     var rec = { action: "等待時機", detail: "無明顯做空訊號", cls: "rec-wait", level: "wait" };
-    if (bestShortSignal) {
-        rec = { action: "最強做空訊號", detail: "指數跌+融資增背離！歷史10日跌率60.7%<br><b>積極做空，部位50%</b>", cls: "rec-heavy", level: "heavy" };
-    } else if (allBelow60 && shortScore >= 14) {
-        rec = { action: "強力做空", detail: "大盤+台積均破60均，空方"+shortScore+"分<br><b>部位80%</b>", cls: "rec-heavy", level: "heavy" };
-    } else if (txBelow60 && shortScore >= 10) {
-        rec = { action: "加碼做空", detail: "大盤破60均，空方"+shortScore+"分<br><b>部位50%</b>", cls: "rec-add", level: "add" };
-    } else if (txBelow20 && shortScore >= 8) {
-        rec = { action: "建倉做空", detail: "大盤破20均，空方"+shortScore+"分<br><b>部位30%</b>", cls: "rec-build", level: "build" };
-    } else if (txBelow10 && shortScore >= 5) {
-        rec = { action: "試單做空", detail: "大盤破10均，空方"+shortScore+"分<br><b>部位15%</b>", cls: "rec-trial", level: "trial" };
-    } else if ((overheatScore >= 3 || marginScore >= 4 || futureScore >= 3) && shortScore >= 3) {
-        rec = { action: "準備做空", detail: "過熱"+overheatScore+"，融資"+marginScore+"，期貨"+futureScore+"<br><b>等待破均線</b>", cls: "rec-prepare", level: "prepare" };
-    } else if (overheatScore >= 2 || marginPhase === 2 || futureScore >= 2) {
-        rec = { action: "密切觀察", detail: "有轉弱跡象，持續觀察", cls: "rec-watch", level: "watch" };
-    }
+    if (bestShortSignal) rec = { action: "最強做空訊號", detail: "指數跌+融資增背離！歷史10日跌率60.7%<br><b>積極做空，部位50%</b>", cls: "rec-heavy", level: "heavy" };
+    else if (allBelow60 && shortScore >= 14) rec = { action: "強力做空", detail: "大盤+台積均破60均，空方"+shortScore+"分<br><b>部位80%</b>", cls: "rec-heavy", level: "heavy" };
+    else if (txBelow60 && shortScore >= 10) rec = { action: "加碼做空", detail: "大盤破60均，空方"+shortScore+"分<br><b>部位50%</b>", cls: "rec-add", level: "add" };
+    else if (txBelow20 && shortScore >= 8) rec = { action: "建倉做空", detail: "大盤破20均，空方"+shortScore+"分<br><b>部位30%</b>", cls: "rec-build", level: "build" };
+    else if (txBelow10 && shortScore >= 5) rec = { action: "試單做空", detail: "大盤破10均，空方"+shortScore+"分<br><b>部位15%</b>", cls: "rec-trial", level: "trial" };
+    else if ((overheatScore >= 3 || marginScore >= 4 || futureScore >= 3) && shortScore >= 3) rec = { action: "準備做空", detail: "過熱"+overheatScore+"，融資"+marginScore+"，期貨"+futureScore+"<br><b>等待破均線</b>", cls: "rec-prepare", level: "prepare" };
+    else if (overheatScore >= 2 || marginPhase === 2 || futureScore >= 2) rec = { action: "密切觀察", detail: "有轉弱跡象，持續觀察", cls: "rec-watch", level: "watch" };
 
     function renderInd(list) {
         var html = "";
@@ -628,34 +447,19 @@ function renderDashboard() {
             var cls = m.a ? "ma-item above" : "ma-item below";
             html += "<div class=\""+cls+"\"><div class=\"value\">"+m.v.toFixed(0)+"</div><div class=\"label\">"+m.l+"</div></div>";
         }
-        html += "</div>";
-        return html;
+        return html + "</div>";
     }
+
+    function scoreColor(score, t1, t2) { return score >= t2 ? "#ff0000" : score >= t1 ? "#ff6b6b" : "#48dbfb"; }
 
     var html = "<div class=\"recommendation-box "+rec.cls+"\"><div class=\"rec-title\">今日操作建議</div><div class=\"rec-action\">"+rec.action+"</div><div class=\"rec-detail\">"+rec.detail+"</div></div>";
 
-    if (!hasFutureData) {
-        html += "<div class=\"status-box\">期貨資料未載入，請確認 future_index.xlsx 已上傳到GitHub</div>";
-    }
+    if (!hasFutureData) html += "<div class=\"status-box\">期貨資料未載入，請確認 future_index.xlsx 已上傳到GitHub</div>";
 
-    if (bestShortSignal) {
-        html += "<div class=\"alert-box alert-red\"><h4 style=\"color:#ff4444;\">最強做空訊號觸發！</h4><p>指數10日跌"+d.tx10dRet.toFixed(1)+"% + 融資10日增"+d.margin10dChg.toFixed(1)+"% - 歷史10日跌率60.7%</p></div>";
-    }
-    if (txBelow10 && !txBelow20) {
-        html += "<div class=\"alert-box alert-orange\"><h4 style=\"color:#ff9800;\">高檔轉弱</h4><p>破10均但還在20均上，84%機率10天內破20均</p></div>";
-    }
-    if (marginPhase === 2) {
-        html += "<div class=\"alert-box alert-yellow\"><h4 style=\"color:#ffc107;\">融資階段2</h4><p>指數跌+融資增，散戶不認輸</p></div>";
-    }
-    if (hasFutureData && d.foreignOI5dChg < -10000) {
-        html += "<div class=\"alert-box alert-yellow\"><h4 style=\"color:#ffc107;\">外資期貨減碼</h4><p>5日減碼"+(Math.abs(d.foreignOI5dChg)/1000).toFixed(1)+"K口，歷史10日跌率48%</p></div>";
-    }
-
-    function scoreColor(score, t1, t2) {
-        if (score >= t2) return "#ff0000";
-        if (score >= t1) return "#ff6b6b";
-        return "#48dbfb";
-    }
+    if (bestShortSignal) html += "<div class=\"alert-box alert-red\"><h4 style=\"color:#ff4444;\">最強做空訊號觸發！</h4><p>指數10日跌"+d.tx10dRet.toFixed(1)+"% + 融資10日增"+d.margin10dChg.toFixed(1)+"% - 歷史10日跌率60.7%</p></div>";
+    if (txBelow10 && !txBelow20) html += "<div class=\"alert-box alert-orange\"><h4 style=\"color:#ff9800;\">高檔轉弱</h4><p>破10均但還在20均上，84%機率10天內破20均</p></div>";
+    if (marginPhase === 2) html += "<div class=\"alert-box alert-yellow\"><h4 style=\"color:#ffc107;\">融資階段2</h4><p>指數跌+融資增，散戶不認輸</p></div>";
+    if (hasFutureData && d.foreignOI5dChg < -10000) html += "<div class=\"alert-box alert-yellow\"><h4 style=\"color:#ffc107;\">外資期貨減碼</h4><p>5日減碼"+(Math.abs(d.foreignOI5dChg)/1000).toFixed(1)+"K口，歷史10日跌率48%</p></div>";
 
     html += "<div class=\"score-display\">";
     html += "<div class=\"score-item\"><div class=\"score-value\" style=\"color:"+(overheatScore>=3?"#ff6b6b":"#feca57")+"\">"+overheatScore+"</div><div class=\"score-label\">過熱</div></div>";
@@ -677,14 +481,12 @@ function renderDashboard() {
         html += "</div></div>";
     }
 
-    html += "<div class=\"card\"><div class=\"card-title\">融資循環</div>";
-    html += "<div class=\"phase-box\">";
+    html += "<div class=\"card\"><div class=\"card-title\">融資循環</div><div class=\"phase-box\">";
     html += "<div class=\"phase-item "+(marginPhase===1?"active":"")+"\"><div class=\"phase-name\">階段1</div><div class=\"phase-label\">最佳</div><div class=\"phase-hint\">漲+融增</div></div>";
     html += "<div class=\"phase-item "+(marginPhase===2?"active":"")+"\"><div class=\"phase-name\">階段2</div><div class=\"phase-label\" style=\"color:#ff6b6b;\">起跌</div><div class=\"phase-hint\">跌+融增</div></div>";
     html += "<div class=\"phase-item "+(marginPhase===3?"active":"")+"\"><div class=\"phase-name\">階段3</div><div class=\"phase-label\">最殺</div><div class=\"phase-hint\">跌+融減</div></div>";
     html += "<div class=\"phase-item "+(marginPhase===4?"active":"")+"\"><div class=\"phase-name\">階段4</div><div class=\"phase-label\">反彈</div><div class=\"phase-hint\">漲+融減</div></div>";
-    html += "</div>";
-    html += "<div class=\"margin-stats\">";
+    html += "</div><div class=\"margin-stats\">";
     html += "<div class=\"margin-stat\"><div class=\"stat-value\">"+(d.margin/1e8).toFixed(0)+"億</div><div class=\"stat-label\">加權融資</div></div>";
     html += "<div class=\"margin-stat\"><div class=\"stat-value\" style=\"color:"+(d.margin10dChg>3?"#ff6b6b":"#26de81")+"\">"+(d.margin10dChg>0?"+":"")+d.margin10dChg.toFixed(1)+"%</div><div class=\"stat-label\">10日變化</div></div>";
     html += "</div></div>";
@@ -697,23 +499,16 @@ function renderDashboard() {
 
     html += "<div class=\"grid-2 grid\">";
     html += "<div class=\"card\"><div class=\"card-title\">融資訊號<span class=\"card-score\">"+marginScore+"</span></div>"+renderInd(indicators.margin)+"</div>";
-    html += "<div class=\"card\"><div class=\"card-title\">期貨籌碼<span class=\"card-score\">"+futureScore+"</span></div>"+renderInd(indicators.future)+"</div>";
-    html += "</div>";
-
+    html += "<div class=\"card\"><div class=\"card-title\">期貨籌碼<span class=\"card-score\">"+futureScore+"</span></div>"+renderInd(indicators.future)+"</div></div>";
     html += "<div class=\"grid-2 grid\">";
     html += "<div class=\"card\"><div class=\"card-title\">過熱指標<span class=\"card-score\">"+overheatScore+"</span></div>"+renderInd(indicators.overheat)+"</div>";
-    html += "<div class=\"card\"><div class=\"card-title\">10均預警<span class=\"card-score\">"+ma10Score+"</span></div>"+renderInd(indicators.ma10)+"</div>";
-    html += "</div>";
-
+    html += "<div class=\"card\"><div class=\"card-title\">10均預警<span class=\"card-score\">"+ma10Score+"</span></div>"+renderInd(indicators.ma10)+"</div></div>";
     html += "<div class=\"grid-2 grid\">";
     html += "<div class=\"card\"><div class=\"card-title\">價格訊號<span class=\"card-score\">"+priceScore+"</span></div>"+renderInd(indicators.price)+"</div>";
-    html += "<div class=\"card\"><div class=\"card-title\">現貨籌碼<span class=\"card-score\">"+chipScore+"</span></div>"+renderInd(indicators.chip)+"</div>";
-    html += "</div>";
-
+    html += "<div class=\"card\"><div class=\"card-title\">現貨籌碼<span class=\"card-score\">"+chipScore+"</span></div>"+renderInd(indicators.chip)+"</div></div>";
     html += "<div class=\"grid-2 grid\">";
     html += "<div class=\"card\"><div class=\"card-title\">台積電<span class=\"card-score\">"+tsmcScore+"</span></div>"+renderInd(indicators.tsmc)+"</div>";
-    html += "<div class=\"card\"><div class=\"card-title\">OTC領先<span class=\"card-score\">"+otcScore+"</span></div>"+renderInd(indicators.otc)+"</div>";
-    html += "</div>";
+    html += "<div class=\"card\"><div class=\"card-title\">OTC領先<span class=\"card-score\">"+otcScore+"</span></div>"+renderInd(indicators.otc)+"</div></div>";
 
     html += "<div class=\"card\"><div class=\"card-title\">金字塔策略</div><table class=\"action-table\"><tr><th>階段</th><th>條件</th><th>部位</th><th>狀態</th></tr>";
     html += "<tr class=\"action-row "+(rec.level==="watch"||rec.level==="wait"?"current":"")+"\"><td>觀察</td><td>過熱/融資/期貨訊號</td><td>0%</td><td>"+(overheatScore>=2||marginScore>=2||futureScore>=2?"✓":"-")+"</td></tr>";
@@ -727,51 +522,27 @@ function renderDashboard() {
     html += "<div class=\"card\"><div class=\"card-title\">近30日走勢</div><div class=\"chart-container\"><canvas id=\"priceChart\"></canvas></div></div>";
 
     document.getElementById("mainContent").innerHTML = html;
-    log("介面渲染完成");
 
     if (typeof Chart !== "undefined") {
-        try {
-            var ctx = document.getElementById("priceChart").getContext("2d");
-            var last30 = processed.slice(-30);
-            var labels = [];
-            var txData = [];
-            var otcData = [];
-            var ma20Data = [];
-            for (var i = 0; i < last30.length; i++) {
-                labels.push(last30[i].date.slice(5));
-                txData.push(last30[i].txClose);
-                otcData.push(last30[i].otcClose);
-                ma20Data.push(last30[i].txMa20);
+        var ctx = document.getElementById("priceChart").getContext("2d");
+        var last30 = processed.slice(-30);
+        var labels = [], txData = [], otcData = [], ma20Data = [];
+        for (var i = 0; i < last30.length; i++) { labels.push(last30[i].date.slice(5)); txData.push(last30[i].txClose); otcData.push(last30[i].otcClose); ma20Data.push(last30[i].txMa20); }
+        new Chart(ctx, {
+            type: "line",
+            data: { labels: labels, datasets: [
+                { label: "加權", data: txData, borderColor: "#48dbfb", fill: false, tension: 0.3, yAxisID: "y", pointRadius: 1 },
+                { label: "OTC", data: otcData, borderColor: "#feca57", fill: false, tension: 0.3, yAxisID: "y1", pointRadius: 1 },
+                { label: "20均", data: ma20Data, borderColor: "#ff6b6b", borderDash: [4,4], fill: false, pointRadius: 0, yAxisID: "y" }
+            ]},
+            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+                plugins: { legend: { labels: { color: "#888", font: { size: 8 } } } },
+                scales: { x: { ticks: { color: "#666", font: { size: 7 } }, grid: { color: "rgba(255,255,255,0.05)" } },
+                    y: { type: "linear", position: "left", ticks: { color: "#48dbfb", font: { size: 7 } }, grid: { color: "rgba(255,255,255,0.05)" } },
+                    y1: { type: "linear", position: "right", ticks: { color: "#feca57", font: { size: 7 } }, grid: { drawOnChartArea: false } } }
             }
-            new Chart(ctx, {
-                type: "line",
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { label: "加權", data: txData, borderColor: "#48dbfb", fill: false, tension: 0.3, yAxisID: "y", pointRadius: 1 },
-                        { label: "OTC", data: otcData, borderColor: "#feca57", fill: false, tension: 0.3, yAxisID: "y1", pointRadius: 1 },
-                        { label: "20均", data: ma20Data, borderColor: "#ff6b6b", borderDash: [4,4], fill: false, pointRadius: 0, yAxisID: "y" }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: "index", intersect: false },
-                    plugins: { legend: { labels: { color: "#888", font: { size: 8 } } } },
-                    scales: {
-                        x: { ticks: { color: "#666", font: { size: 7 } }, grid: { color: "rgba(255,255,255,0.05)" } },
-                        y: { type: "linear", position: "left", ticks: { color: "#48dbfb", font: { size: 7 } }, grid: { color: "rgba(255,255,255,0.05)" } },
-                        y1: { type: "linear", position: "right", ticks: { color: "#feca57", font: { size: 7 } }, grid: { drawOnChartArea: false } }
-                    }
-                }
-            });
-            log("圖表繪製完成");
-        } catch (e) {
-            log("圖表繪製失敗: " + e.message);
-        }
+        });
     }
-    
-    log("=== 載入完成 ===");
 }
 ```
 
