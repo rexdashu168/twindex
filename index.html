@@ -1,362 +1,484 @@
 <!DOCTYPE html>
+
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台股做空訊號評分系統 Pro v2</title>
+    <title>台股做空訊號系統 Pro v4</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft JhengHei', sans-serif; background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%); color: #eee; min-height: 100vh; padding: 15px; }
+        body { font-family: 'Microsoft JhengHei', sans-serif; background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%); color: #eee; min-height: 100vh; padding: 12px; }
         .container { max-width: 1600px; margin: 0 auto; }
-        header { text-align: center; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 15px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); }
-        header h1 { font-size: 1.8em; background: linear-gradient(90deg, #ff416c, #ff4b2b, #f7971e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .subtitle { color: #888; margin-top: 8px; }
-        .recommendation-box { background: linear-gradient(135deg, rgba(255,65,108,0.15), rgba(255,75,43,0.15)); border: 2px solid; border-radius: 20px; padding: 30px; margin-bottom: 25px; text-align: center; }
-        .rec-title { font-size: 1.3em; margin-bottom: 15px; }
-        .rec-action { font-size: 2.5em; font-weight: bold; margin: 15px 0; }
-        .rec-detail { font-size: 1.1em; color: #ccc; line-height: 1.8; }
+        header { text-align: center; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.1); }
+        header h1 { font-size: 1.6em; background: linear-gradient(90deg, #ff416c, #ff4b2b, #f7971e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: #888; margin-top: 6px; font-size: 0.85em; }
+        .recommendation-box { background: linear-gradient(135deg, rgba(255,65,108,0.15), rgba(255,75,43,0.15)); border: 2px solid; border-radius: 15px; padding: 20px; margin-bottom: 15px; text-align: center; }
+        .rec-title { font-size: 1.1em; margin-bottom: 10px; }
+        .rec-action { font-size: 2em; font-weight: bold; margin: 10px 0; }
+        .rec-detail { font-size: 0.95em; color: #ccc; line-height: 1.7; }
         .rec-wait { border-color: #666; } .rec-watch { border-color: #feca57; } .rec-prepare { border-color: #ff9f43; }
         .rec-trial { border-color: #ff6b6b; } .rec-build { border-color: #ee5a24; } .rec-add { border-color: #eb2f06; }
         .rec-heavy { border-color: #ff0000; animation: glow 1.5s infinite; }
-        @keyframes glow { 0%, 100% { box-shadow: 0 0 20px rgba(255,0,0,0.3); } 50% { box-shadow: 0 0 40px rgba(255,0,0,0.6); } }
-        .score-display { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin: 25px 0; }
-        .score-item { text-align: center; padding: 15px 18px; background: rgba(255,255,255,0.05); border-radius: 15px; min-width: 100px; }
-        .score-value { font-size: 2em; font-weight: bold; }
-        .score-label { color: #888; margin-top: 5px; font-size: 0.8em; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 15px; }
-        .grid-2 { grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); }
-        .card { background: rgba(255,255,255,0.03); border-radius: 15px; padding: 16px; border: 1px solid rgba(255,255,255,0.08); }
-        .card-title { font-size: 0.95em; color: #48dbfb; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .indicator-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; margin: 3px 0; background: rgba(255,255,255,0.02); border-radius: 6px; border-left: 3px solid transparent; font-size: 0.85em; }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 15px rgba(255,0,0,0.3); } 50% { box-shadow: 0 0 30px rgba(255,0,0,0.6); } }
+        .score-display { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 15px 0; }
+        .score-item { text-align: center; padding: 10px 12px; background: rgba(255,255,255,0.05); border-radius: 10px; min-width: 75px; }
+        .score-value { font-size: 1.6em; font-weight: bold; }
+        .score-label { color: #888; margin-top: 3px; font-size: 0.7em; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 10px; }
+        .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+        .grid-3 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+        .card { background: rgba(255,255,255,0.03); border-radius: 10px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); }
+        .card-title { font-size: 0.85em; color: #48dbfb; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .card-score { background: rgba(255,107,107,0.2); padding: 2px 7px; border-radius: 8px; font-size: 0.8em; }
+        .indicator-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 5px; margin: 2px 0; background: rgba(255,255,255,0.02); border-radius: 4px; border-left: 3px solid transparent; font-size: 0.75em; }
         .indicator-item.triggered { background: rgba(255,107,107,0.15); border-left-color: #ff6b6b; }
-        .ind-name { flex: 1; } .ind-value { min-width: 55px; text-align: right; font-family: monospace; font-size: 0.8em; }
-        .ind-weight { min-width: 28px; text-align: center; font-size: 0.7em; color: #666; } .ind-status { min-width: 18px; text-align: center; }
-        .price-box { text-align: center; padding: 8px; }
-        .price-main { font-size: 1.6em; font-weight: bold; }
-        .price-change { font-size: 0.9em; margin-top: 3px; }
+        .ind-name { flex: 1; } .ind-value { min-width: 65px; text-align: right; font-family: monospace; font-size: 0.8em; color: #aaa; }
+        .ind-weight { min-width: 28px; text-align: center; font-size: 0.65em; color: #ff6b6b; } .ind-status { min-width: 14px; text-align: center; }
+        .price-box { text-align: center; padding: 5px; }
+        .price-main { font-size: 1.4em; font-weight: bold; }
+        .price-change { font-size: 0.8em; margin-top: 2px; }
         .up { color: #ff6b6b; } .down { color: #26de81; }
-        .ma-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
-        .ma-item { text-align: center; padding: 5px 3px; background: rgba(255,255,255,0.03); border-radius: 5px; }
-        .ma-item .value { font-size: 0.85em; font-weight: bold; } .ma-item .label { font-size: 0.6em; color: #888; }
+        .ma-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-top: 5px; }
+        .ma-item { text-align: center; padding: 3px 2px; background: rgba(255,255,255,0.03); border-radius: 3px; }
+        .ma-item .value { font-size: 0.75em; font-weight: bold; } .ma-item .label { font-size: 0.5em; color: #888; }
         .ma-item.above { border-bottom: 2px solid #26de81; } .ma-item.below { border-bottom: 2px solid #ff6b6b; }
-        .alert-box { border-radius: 10px; padding: 12px; margin: 12px 0; text-align: center; }
+        .alert-box { border-radius: 8px; padding: 10px; margin: 8px 0; text-align: center; }
+        .alert-red { background: linear-gradient(135deg, rgba(255,0,0,0.2), rgba(200,0,0,0.2)); border: 1px solid #ff4444; }
         .alert-yellow { background: linear-gradient(135deg, rgba(255,193,7,0.2), rgba(255,152,0,0.2)); border: 1px solid #ffc107; }
         .alert-orange { background: linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,87,34,0.2)); border: 1px solid #ff9800; }
-        .alert-box h4 { margin-bottom: 6px; }
-        .action-table { width: 100%; margin-top: 10px; font-size: 0.8em; }
-        .action-table th, .action-table td { padding: 7px 4px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .alert-box h4 { margin-bottom: 4px; font-size: 0.9em; }
+        .alert-box p { font-size: 0.8em; color: #ccc; }
+        .phase-box { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+        .phase-item { text-align: center; padding: 8px 4px; background: rgba(255,255,255,0.03); border-radius: 6px; border: 2px solid transparent; }
+        .phase-item.active { border-color: #feca57; background: rgba(254,202,87,0.1); }
+        .phase-item .phase-name { font-size: 0.7em; color: #888; }
+        .phase-item .phase-label { font-size: 0.85em; font-weight: bold; margin: 2px 0; }
+        .phase-item .phase-hint { font-size: 0.6em; color: #666; }
+        .margin-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 6px; }
+        .margin-stat { text-align: center; padding: 6px; background: rgba(255,255,255,0.02); border-radius: 5px; }
+        .margin-stat .stat-value { font-size: 1em; font-weight: bold; }
+        .margin-stat .stat-label { font-size: 0.65em; color: #888; }
+        .future-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+        .future-stat { text-align: center; padding: 8px 4px; background: rgba(255,255,255,0.02); border-radius: 5px; }
+        .future-stat .stat-value { font-size: 1.1em; font-weight: bold; }
+        .future-stat .stat-label { font-size: 0.6em; color: #888; }
+        .future-stat.bullish .stat-value { color: #ff6b6b; }
+        .future-stat.bearish .stat-value { color: #26de81; }
+        .action-table { width: 100%; margin-top: 6px; font-size: 0.7em; }
+        .action-table th, .action-table td { padding: 5px 2px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); }
         .action-table th { color: #888; font-weight: normal; } .action-row.current { background: rgba(255,107,107,0.2); }
-        .chart-container { height: 200px; margin-top: 10px; }
-        .loading { text-align: center; padding: 80px 20px; }
-        .spinner { width: 50px; height: 50px; border: 4px solid #333; border-top-color: #ff6b6b; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        .chart-container { height: 160px; margin-top: 6px; }
+        .loading { text-align: center; padding: 50px 15px; }
+        .spinner { width: 35px; height: 35px; border: 3px solid #333; border-top-color: #ff6b6b; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .error-box { background: rgba(255,107,107,0.2); border: 1px solid #ff6b6b; padding: 25px; border-radius: 10px; text-align: center; }
-        footer { text-align: center; padding: 15px; color: #555; font-size: 0.75em; margin-top: 20px; }
-        @media (max-width: 768px) { .grid, .grid-2 { grid-template-columns: 1fr; } .score-display { gap: 8px; } .score-item { min-width: 65px; padding: 10px 8px; } .score-value { font-size: 1.5em; } .rec-action { font-size: 1.4em; } .ma-grid { grid-template-columns: repeat(2, 1fr); } }
+        .error-box { background: rgba(255,107,107,0.2); border: 1px solid #ff6b6b; padding: 15px; border-radius: 8px; text-align: center; }
+        footer { text-align: center; padding: 10px; color: #555; font-size: 0.65em; margin-top: 12px; }
+        @media (max-width: 768px) { 
+            .grid, .grid-2, .grid-3 { grid-template-columns: 1fr; } 
+            .score-display { gap: 5px; } 
+            .score-item { min-width: 55px; padding: 7px 5px; } 
+            .score-value { font-size: 1.3em; } 
+            .rec-action { font-size: 1.2em; } 
+            .phase-box { grid-template-columns: repeat(2, 1fr); }
+            .future-stats { grid-template-columns: repeat(2, 1fr); }
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <header>
-        <h1>🎯 台股做空訊號評分系統 Pro v2</h1>
-        <p class="subtitle">整合加權、OTC、台積電 + 5/10/20/60日均線多維度分析</p>
+        <h1>🎯 台股做空訊號系統 Pro v4</h1>
+        <p class="subtitle">均線系統 + 融資循環 + 期貨籌碼 + OTC領先 + 台積電</p>
         <p class="subtitle">資料日期：<span id="dataDate">載入中...</span></p>
     </header>
     <div id="mainContent"><div class="loading"><div class="spinner"></div><p>正在載入資料...</p></div></div>
-    <footer><p>⚠️ 風險警告：做空操作風險極高。本系統僅供資料整理參考，投資決策與盈虧由使用者自行承擔。</p></footer>
+    <footer><p>⚠️ 本系統僅供資料整理參考，不構成投資建議。做空風險極高，投資決策請自行判斷。</p></footer>
 </div>
 <script>
 const CONFIG = {
     TXINDEX_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/TXINDEX.xlsx',
     OTC_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/OTCindex.xlsx',
     TSMC_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/2330.xlsx',
+    FUTURE_URL: 'https://raw.githubusercontent.com/rexdashu168/twindex/main/future_index.xlsx',
 };
 let processed = [];
 window.onload = () => loadAllData();
 
 async function loadAllData() {
-    try {
-        const [txData, otcData, tsmcData] = await Promise.all([fetchXLSX(CONFIG.TXINDEX_URL), fetchXLSX(CONFIG.OTC_URL), fetchXLSX(CONFIG.TSMC_URL)]);
-        processData(txData, otcData, tsmcData);
-    } catch (err) {
-        document.getElementById('mainContent').innerHTML = '<div class="error-box"><h3>❌ 載入失敗</h3><p style="margin-top:10px;color:#aaa;">'+err.message+'</p><button onclick="loadAllData()" style="margin-top:15px;padding:10px 25px;background:#667eea;border:none;border-radius:5px;color:#fff;cursor:pointer;">重試</button></div>';
-    }
+try {
+const [txData, otcData, tsmcData, futureData] = await Promise.all([
+fetchXLSX(CONFIG.TXINDEX_URL),
+fetchXLSX(CONFIG.OTC_URL),
+fetchXLSX(CONFIG.TSMC_URL),
+fetchXLSX(CONFIG.FUTURE_URL)
+]);
+processData(txData, otcData, tsmcData, futureData);
+} catch (err) {
+document.getElementById(‘mainContent’).innerHTML = ‘<div class="error-box"><h3>❌ 載入失敗</h3><p style="margin-top:8px;color:#aaa;">’+err.message+’</p><button onclick="loadAllData()" style="margin-top:12px;padding:8px 20px;background:#667eea;border:none;border-radius:5px;color:#fff;cursor:pointer;">重試</button></div>’;
+}
 }
 
 async function fetchXLSX(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('無法載入: ' + url);
-    const buffer = await response.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
+const response = await fetch(url);
+if (!response.ok) throw new Error(’無法載入: ’ + url);
+const buffer = await response.arrayBuffer();
+const workbook = XLSX.read(buffer, { type: ‘array’ });
+return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
 }
 
 function parseNum(v) {
-    if (v === null || v === undefined || v === '' || v === 'NaN' || v === 'N/A') return NaN;
-    let s = String(v).replace(/,/g, '');
-    if (s.includes('億')) return parseFloat(s.replace('億', '')) * 1e8;
-    if (s.includes('萬')) return parseFloat(s.replace('萬', '')) * 1e4;
-    return parseFloat(s);
+if (v === null || v === undefined || v === ‘’ || v === ‘NaN’ || v === ‘N/A’) return NaN;
+let s = String(v).replace(/,/g, ‘’);
+if (s.includes(‘億’)) return parseFloat(s.replace(‘億’, ‘’)) * 1e8;
+if (s.includes(‘萬’)) return parseFloat(s.replace(‘萬’, ‘’)) * 1e4;
+return parseFloat(s);
 }
 
 function parseDate(v) {
-    if (!v) return null;
-    if (typeof v === 'number') return new Date((v - 25569) * 86400 * 1000).toISOString().split('T')[0].replace(/-/g, '/');
-    return String(v).split(' ')[0];
+if (!v) return null;
+if (typeof v === ‘number’) return new Date((v - 25569) * 86400 * 1000).toISOString().split(‘T’)[0].replace(/-/g, ‘/’);
+return String(v).split(’ ’)[0];
 }
 
 function calcMA(data, field, period) {
-    return data.map((_, i) => {
-        if (i < period - 1) return NaN;
-        let sum = 0; for (let j = 0; j < period; j++) sum += data[i - j][field];
-        return sum / period;
-    });
+return data.map((_, i) => {
+if (i < period - 1) return NaN;
+let sum = 0; for (let j = 0; j < period; j++) sum += data[i - j][field];
+return sum / period;
+});
 }
 
 function calcRSI(data, field, period) {
-    let result = [], gains = [], losses = [];
-    for (let i = 0; i < data.length; i++) {
-        if (i === 0) { result.push(50); continue; }
-        let change = data[i][field] - data[i-1][field];
-        gains.push(change > 0 ? change : 0); losses.push(change < 0 ? -change : 0);
-        if (i < period) result.push(50);
-        else {
-            let avgG = gains.slice(-period).reduce((a,b)=>a+b,0) / period;
-            let avgL = losses.slice(-period).reduce((a,b)=>a+b,0) / period;
-            result.push(avgL === 0 ? 100 : 100 - (100 / (1 + avgG/avgL)));
-        }
-    }
-    return result;
+let result = [], gains = [], losses = [];
+for (let i = 0; i < data.length; i++) {
+if (i === 0) { result.push(50); continue; }
+let change = data[i][field] - data[i-1][field];
+gains.push(change > 0 ? change : 0); losses.push(change < 0 ? -change : 0);
+if (i < period) result.push(50);
+else {
+let avgG = gains.slice(-period).reduce((a,b)=>a+b,0) / period;
+let avgL = losses.slice(-period).reduce((a,b)=>a+b,0) / period;
+result.push(avgL === 0 ? 100 : 100 - (100 / (1 + avgG/avgL)));
+}
+}
+return result;
 }
 
-function processData(txRaw, otcRaw, tsmcRaw) {
-    let txData = txRaw.map(row => ({ date: parseDate(row['時間']), close: parseNum(row['收盤價']), volume: parseNum(row['成交量']), foreign: parseNum(row['買賣超(元)']), trust: parseNum(row['買賣超(元).1']), margin: parseNum(row['融資(元)']) })).filter(d => !isNaN(d.close) && d.date);
-    let otcMap = {}, tsmcMap = {};
-    otcRaw.forEach(row => { let date = parseDate(row['時間']); if (date) otcMap[date] = parseNum(row['收盤價']); });
-    tsmcRaw.forEach(row => { let date = parseDate(row['時間']); if (date) tsmcMap[date] = parseNum(row['收盤價']); });
-    let merged = txData.map(tx => ({ ...tx, otcClose: otcMap[tx.date] || NaN, tsmcClose: tsmcMap[tx.date] || NaN })).filter(d => !isNaN(d.otcClose) && !isNaN(d.tsmcClose));
-    merged = merged.slice(-150);
-    
-    // 計算所有均線 (5, 10, 20, 60)
-    let txMa5 = calcMA(merged, 'close', 5), txMa10 = calcMA(merged, 'close', 10), txMa20 = calcMA(merged, 'close', 20), txMa60 = calcMA(merged, 'close', 60);
-    let otcMa5 = calcMA(merged, 'otcClose', 5), otcMa10 = calcMA(merged, 'otcClose', 10), otcMa20 = calcMA(merged, 'otcClose', 20), otcMa60 = calcMA(merged, 'otcClose', 60);
-    let tsmcMa5 = calcMA(merged, 'tsmcClose', 5), tsmcMa10 = calcMA(merged, 'tsmcClose', 10), tsmcMa20 = calcMA(merged, 'tsmcClose', 20), tsmcMa60 = calcMA(merged, 'tsmcClose', 60);
-    let txRsi = calcRSI(merged, 'close', 14);
-    
-    processed = merged.map((row, i) => {
-        let txRet = i > 0 ? (row.close / merged[i-1].close - 1) * 100 : 0;
-        let otcRet = i > 0 ? (row.otcClose / merged[i-1].otcClose - 1) * 100 : 0;
-        let tsmcRet = i > 0 ? (row.tsmcClose / merged[i-1].tsmcClose - 1) * 100 : 0;
-        let txBias20 = txMa20[i] ? (row.close / txMa20[i] - 1) * 100 : 0;
-        
-        // 連跌天數
-        let txDownDays = 0, otcDownDays = 0, foreignSellDays = 0;
-        for (let j = i; j > 0 && merged[j].close < merged[j-1].close; j--) txDownDays++;
-        for (let j = i; j > 0 && merged[j].otcClose < merged[j-1].otcClose; j--) otcDownDays++;
-        for (let j = i; j >= 0 && merged[j].foreign < 0; j--) foreignSellDays++;
-        
-        let marginChange = i >= 20 && merged[i-20].margin ? (row.margin / merged[i-20].margin - 1) * 100 : 0;
-        let gain60 = i >= 60 ? (row.close / merged[i-60].close - 1) * 100 : 0;
-        let gain120 = i >= 120 ? (row.close / merged[i-120].close - 1) * 100 : 0;
-        let high52 = row.close; for (let j = 0; j < Math.min(240, i+1); j++) if (merged[i-j].close > high52) high52 = merged[i-j].close;
-        let distHigh = (row.close / high52 - 1) * 100;
-        let tx5Ret = i >= 5 ? (row.close / merged[i-5].close - 1) * 100 : 0;
-        let otc5Ret = i >= 5 ? (row.otcClose / merged[i-5].otcClose - 1) * 100 : 0;
-        
-        // 剛跌破均線判斷
-        let justBreak10 = i > 0 && row.close < txMa10[i] && merged[i-1].close >= txMa10[i-1];
-        let justBreak20 = i > 0 && row.close < txMa20[i] && merged[i-1].close >= txMa20[i-1];
-        
-        return {
-            date: row.date,
-            txClose: row.close, txRet, txBias20, txRsi: txRsi[i],
-            txMa5: txMa5[i], txMa10: txMa10[i], txMa20: txMa20[i], txMa60: txMa60[i],
-            txDownDays, justBreak10, justBreak20,
-            otcClose: row.otcClose, otcRet,
-            otcMa5: otcMa5[i], otcMa10: otcMa10[i], otcMa20: otcMa20[i], otcMa60: otcMa60[i],
-            otcDownDays, otcTxGap5: otc5Ret - tx5Ret,
-            tsmcClose: row.tsmcClose, tsmcRet,
-            tsmcMa5: tsmcMa5[i], tsmcMa10: tsmcMa10[i], tsmcMa20: tsmcMa20[i], tsmcMa60: tsmcMa60[i],
-            foreign: row.foreign, foreignSellDays, trust: row.trust,
-            marginChange, gain60, gain120, distHigh
+function processData(txRaw, otcRaw, tsmcRaw, futureRaw) {
+let txData = txRaw.map(row => ({
+date: parseDate(row[‘時間’]),
+close: parseNum(row[‘收盤價’]),
+foreign: parseNum(row[‘買賣超(元)’]),
+trust: parseNum(row[‘買賣超(元).1’]),
+margin: parseNum(row[‘融資(元)’]),
+marginChg: parseNum(row[‘差額(元)’])
+})).filter(d => !isNaN(d.close) && d.date);
+
+```
+let otcMap = {}, otcMarginMap = {}, tsmcMap = {}, futureMap = {};
+otcRaw.forEach(row => { 
+    let date = parseDate(row['時間']); 
+    if (date) {
+        otcMap[date] = parseNum(row['收盤價']);
+        otcMarginMap[date] = parseNum(row['融資(元)']);
+    }
+});
+tsmcRaw.forEach(row => { 
+    let date = parseDate(row['時間']); 
+    if (date) tsmcMap[date] = parseNum(row['收盤價']); 
+});
+futureRaw.forEach(row => {
+    let date = parseDate(row['時間']);
+    if (date) {
+        futureMap[date] = {
+            vix: parseNum(row['VIX(恐慌指數)']),
+            foreignOI: parseNum(row['外資及陸資未平倉淨口']),
+            instOI: parseNum(row['三大法人未平倉淨口']),
+            top10OI: parseNum(row['前十大交易人淨口']),
+            oi: parseNum(row['未平倉'])
         };
-    });
-    renderDashboard();
+    }
+});
+
+let merged = txData.map(tx => ({ 
+    ...tx, 
+    otcClose: otcMap[tx.date] || NaN, 
+    otcMargin: otcMarginMap[tx.date] || NaN,
+    tsmcClose: tsmcMap[tx.date] || NaN,
+    ...(futureMap[tx.date] || {})
+})).filter(d => !isNaN(d.otcClose) && !isNaN(d.tsmcClose) && !isNaN(d.vix));
+
+merged = merged.slice(-150);
+
+// 均線
+let txMa5 = calcMA(merged, 'close', 5), txMa10 = calcMA(merged, 'close', 10), txMa20 = calcMA(merged, 'close', 20), txMa60 = calcMA(merged, 'close', 60);
+let otcMa10 = calcMA(merged, 'otcClose', 10), otcMa20 = calcMA(merged, 'otcClose', 20), otcMa60 = calcMA(merged, 'otcClose', 60);
+let tsmcMa10 = calcMA(merged, 'tsmcClose', 10), tsmcMa20 = calcMA(merged, 'tsmcClose', 20), tsmcMa60 = calcMA(merged, 'tsmcClose', 60);
+let txRsi = calcRSI(merged, 'close', 14);
+
+processed = merged.map((row, i) => {
+    let txRet = i > 0 ? (row.close / merged[i-1].close - 1) * 100 : 0;
+    let otcRet = i > 0 ? (row.otcClose / merged[i-1].otcClose - 1) * 100 : 0;
+    let tsmcRet = i > 0 ? (row.tsmcClose / merged[i-1].tsmcClose - 1) * 100 : 0;
+    let txBias20 = txMa20[i] ? (row.close / txMa20[i] - 1) * 100 : 0;
+    
+    let txDownDays = 0, foreignSellDays = 0, marginUpDays = 0;
+    for (let j = i; j > 0 && merged[j].close < merged[j-1].close; j--) txDownDays++;
+    for (let j = i; j >= 0 && merged[j].foreign < 0; j--) foreignSellDays++;
+    for (let j = i; j >= 0 && merged[j].marginChg > 0; j--) marginUpDays++;
+    
+    let margin10dChg = i >= 10 && merged[i-10].margin ? (row.margin / merged[i-10].margin - 1) * 100 : 0;
+    let otcMargin10dChg = i >= 10 && merged[i-10].otcMargin ? (row.otcMargin / merged[i-10].otcMargin - 1) * 100 : 0;
+    let tx10dRet = i >= 10 ? (row.close / merged[i-10].close - 1) * 100 : 0;
+    let foreignOI5dChg = i >= 5 ? row.foreignOI - merged[i-5].foreignOI : 0;
+    
+    let gain60 = i >= 60 ? (row.close / merged[i-60].close - 1) * 100 : 0;
+    let high52 = row.close; for (let j = 0; j < Math.min(240, i+1); j++) if (merged[i-j].close > high52) high52 = merged[i-j].close;
+    let distHigh = (row.close / high52 - 1) * 100;
+    let otc5Ret = i >= 5 ? (row.otcClose / merged[i-5].otcClose - 1) * 100 : 0;
+    let tx5Ret = i >= 5 ? (row.close / merged[i-5].close - 1) * 100 : 0;
+    
+    return {
+        date: row.date,
+        txClose: row.close, txRet, txBias20, txRsi: txRsi[i], tx10dRet,
+        txMa5: txMa5[i], txMa10: txMa10[i], txMa20: txMa20[i], txMa60: txMa60[i], txDownDays,
+        otcClose: row.otcClose, otcRet, otcMa10: otcMa10[i], otcMa20: otcMa20[i], otcMa60: otcMa60[i],
+        otcTxGap5: otc5Ret - tx5Ret,
+        tsmcClose: row.tsmcClose, tsmcRet, tsmcMa10: tsmcMa10[i], tsmcMa20: tsmcMa20[i], tsmcMa60: tsmcMa60[i],
+        foreign: row.foreign, foreignSellDays, trust: row.trust,
+        margin: row.margin, marginChg: row.marginChg, marginUpDays, margin10dChg, otcMargin10dChg,
+        vix: row.vix, foreignOI: row.foreignOI, instOI: row.instOI, foreignOI5dChg,
+        gain60, distHigh
+    };
+});
+renderDashboard();
+```
+
 }
 
 function renderDashboard() {
-    const d = processed[processed.length - 1];
-    document.getElementById('dataDate').textContent = d.date;
-    
-    // 狀態判斷
-    const txBelow5 = d.txClose < d.txMa5, txBelow10 = d.txClose < d.txMa10, txBelow20 = d.txClose < d.txMa20, txBelow60 = d.txClose < d.txMa60;
-    const otcBelow10 = d.otcClose < d.otcMa10, otcBelow20 = d.otcClose < d.otcMa20, otcBelow60 = d.otcClose < d.otcMa60;
-    const tsmcBelow10 = d.tsmcClose < d.tsmcMa10, tsmcBelow20 = d.tsmcClose < d.tsmcMa20, tsmcBelow60 = d.tsmcClose < d.tsmcMa60;
-    const allBelow10 = txBelow10 && otcBelow10 && tsmcBelow10;
-    
-    const indicators = {
-        overheat: [
-            { name: 'RSI > 70', value: d.txRsi, check: d.txRsi > 70, weight: 1 },
-            { name: 'RSI > 75', value: d.txRsi, check: d.txRsi > 75, weight: 1 },
-            { name: '乖離率 > 3%', value: d.txBias20, check: d.txBias20 > 3, weight: 1 },
-            { name: '乖離率 > 5%', value: d.txBias20, check: d.txBias20 > 5, weight: 1 },
-            { name: '融資增 > 5%', value: d.marginChange, check: d.marginChange > 5, weight: 1 },
-            { name: '60日漲 > 15%', value: d.gain60, check: d.gain60 > 15, weight: 1 },
-            { name: '120日漲 > 25%', value: d.gain120, check: d.gain120 > 25, weight: 1 },
-            { name: '接近52週高', value: d.distHigh, check: d.distHigh > -3, weight: 1 },
-        ],
-        ma10: [
-            { name: '大盤破10均', value: 'check', check: txBelow10, weight: 1, display: txBelow10 ? '是' : '否' },
-            { name: '破10均在20均上', value: 'check', check: txBelow10 && !txBelow20, weight: 2, display: txBelow10 && !txBelow20 ? '是' : '否' },
-            { name: 'OTC破10均(大盤沒破)', value: 'check', check: otcBelow10 && !txBelow10, weight: 2, display: otcBelow10 && !txBelow10 ? '是' : '否' },
-            { name: '三指數同步破10均', value: 'check', check: allBelow10, weight: 1, display: allBelow10 ? '是' : '否' },
-            { name: '剛跌破10均', value: 'check', check: d.justBreak10, weight: 1, display: d.justBreak10 ? '是' : '否' },
-        ],
-        otc: [
-            { name: 'OTC破20均(大盤沒破)', value: 'check', check: otcBelow20 && !txBelow20, weight: 2, display: otcBelow20 && !txBelow20 ? '是' : '否' },
-            { name: 'OTC破60均(大盤沒破)', value: 'check', check: otcBelow60 && !txBelow60, weight: 3, display: otcBelow60 && !txBelow60 ? '是' : '否' },
-            { name: 'OTC黑/大盤紅', value: 'check', check: d.otcRet < 0 && d.txRet > 0, weight: 2, display: d.otcRet < 0 && d.txRet > 0 ? '是' : '否' },
-            { name: 'OTC 5日弱>2%', value: d.otcTxGap5, check: d.otcTxGap5 < -2, weight: 2 },
-            { name: 'OTC連跌≥3天', value: d.otcDownDays, check: d.otcDownDays >= 3, weight: 1 },
-        ],
-        price: [
-            { name: '收黑K', value: d.txRet, check: d.txRet < 0, weight: 1 },
-            { name: '大黑K (>1%)', value: d.txRet, check: d.txRet < -1, weight: 2 },
-            { name: '跌破5日均', value: 'check', check: txBelow5, weight: 1, display: txBelow5 ? '是' : '否' },
-            { name: '跌破20日均', value: 'check', check: txBelow20, weight: 2, display: txBelow20 ? '是' : '否' },
-            { name: '跌破60日均', value: 'check', check: txBelow60, weight: 3, display: txBelow60 ? '是' : '否' },
-            { name: '連跌≥2天', value: d.txDownDays, check: d.txDownDays >= 2, weight: 1 },
-        ],
-        chip: [
-            { name: '外資賣超', value: d.foreign, check: d.foreign < 0, weight: 2 },
-            { name: '外資連賣≥3天', value: d.foreignSellDays, check: d.foreignSellDays >= 3, weight: 3 },
-            { name: '外資連賣≥5天', value: d.foreignSellDays, check: d.foreignSellDays >= 5, weight: 4 },
-            { name: '投信賣超', value: d.trust, check: d.trust < 0, weight: 1 },
-        ],
-        tsmc: [
-            { name: '台積收黑', value: d.tsmcRet, check: d.tsmcRet < 0, weight: 1 },
-            { name: '台積跌>1%', value: d.tsmcRet, check: d.tsmcRet < -1, weight: 2 },
-            { name: '台積破10均', value: 'check', check: tsmcBelow10, weight: 1, display: tsmcBelow10 ? '是' : '否' },
-            { name: '台積破20均', value: 'check', check: tsmcBelow20, weight: 2, display: tsmcBelow20 ? '是' : '否' },
-            { name: '台積破60均', value: 'check', check: tsmcBelow60, weight: 3, display: tsmcBelow60 ? '是' : '否' },
-        ],
-    };
-    
-    let overheatScore = indicators.overheat.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
-    let ma10Score = indicators.ma10.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
-    let otcScore = indicators.otc.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
-    let priceScore = indicators.price.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
-    let chipScore = indicators.chip.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
-    let tsmcScore = indicators.tsmc.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
-    let shortScore = ma10Score + otcScore + priceScore + chipScore + tsmcScore;
-    let totalTriggered = [...indicators.ma10, ...indicators.otc, ...indicators.price, ...indicators.chip, ...indicators.tsmc].filter(i => i.check).length;
-    
-    let otcLeading10 = otcBelow10 && !txBelow10;
-    let otcLeading20 = otcBelow20 && !txBelow20;
-    let otcDiverge = d.otcRet < -0.5 && d.txRet > 0;
-    let highZoneWeak = txBelow10 && !txBelow20;
-    
-    function getWinRate(score) { if (score >= 18) return 49.5; if (score >= 14) return 48.0; if (score >= 10) return 46.5; return 45.0; }
-    let winRate = getWinRate(shortScore);
-    
-    function getRecommendation() {
-        if (txBelow60 && tsmcBelow60 && shortScore >= 14) return { action: '🔥 強力做空', detail: '大盤+台積均破60均，空方'+shortScore+'分<br><b>部位80%，停損高點+1%</b>', class: 'rec-heavy', level: 'heavy' };
-        if (txBelow60 && shortScore >= 10) return { action: '📉 加碼做空', detail: '大盤破60均，空方'+shortScore+'分<br><b>部位50%，停損60均+2%</b>', class: 'rec-add', level: 'add' };
-        if (txBelow20 && shortScore >= 8) return { action: '📊 建倉做空', detail: '大盤破20均，空方'+shortScore+'分<br><b>部位30%，停損20均+2%</b>', class: 'rec-build', level: 'build' };
-        if (txBelow10 && shortScore >= 5) return { action: '🎯 試單做空', detail: '大盤破10均，空方'+shortScore+'分<br><b>部位15%，停損10均+2%</b>', class: 'rec-trial', level: 'trial' };
-        if ((overheatScore >= 4 || otcLeading10) && shortScore >= 3) return { action: '⚡ 準備做空', detail: '過熱'+overheatScore+'/8'+(otcLeading10?'，OTC領先破10均':'')+'<br><b>等待破10均訊號</b>', class: 'rec-prepare', level: 'prepare' };
-        if (overheatScore >= 3 || otcScore >= 2 || ma10Score >= 1) return { action: '👀 密切觀察', detail: '過熱'+overheatScore+'，10均訊號'+ma10Score+'，OTC訊號'+otcScore+'<br><b>觀察是否轉弱</b>', class: 'rec-watch', level: 'watch' };
-        return { action: '⏳ 等待時機', detail: '市場未過熱，無明顯轉弱訊號<br><b>保持觀望</b>', class: 'rec-wait', level: 'wait' };
-    }
-    let rec = getRecommendation();
-    
-    function renderInd(list) {
-        return list.map(ind => {
-            let val = ind.display !== undefined ? ind.display : (typeof ind.value === 'number' ? (Math.abs(ind.value) >= 1e8 ? (ind.value/1e8).toFixed(1)+'億' : ind.value.toFixed(2)) : ind.value);
-            return '<div class="indicator-item '+(ind.check?'triggered':'')+'"><span class="ind-name">'+ind.name+'</span><span class="ind-value">'+val+'</span><span class="ind-weight">'+(ind.check?'+'+ind.weight:'')+'</span><span class="ind-status">'+(ind.check?'🔴':'⚪')+'</span></div>';
-        }).join('');
-    }
-    
-    function renderMA(close, ma5, ma10, ma20, ma60) {
-        return '<div class="ma-grid">'+
-            '<div class="ma-item '+(close>ma5?'above':'below')+'"><div class="value">'+(ma5?.toFixed(0)||'-')+'</div><div class="label">5日</div></div>'+
-            '<div class="ma-item '+(close>ma10?'above':'below')+'"><div class="value">'+(ma10?.toFixed(0)||'-')+'</div><div class="label">10日</div></div>'+
-            '<div class="ma-item '+(close>ma20?'above':'below')+'"><div class="value">'+(ma20?.toFixed(0)||'-')+'</div><div class="label">20日</div></div>'+
-            '<div class="ma-item '+(close>ma60?'above':'below')+'"><div class="value">'+(ma60?.toFixed(0)||'-')+'</div><div class="label">60日</div></div></div>';
-    }
-    
-    let html = '<div class="recommendation-box '+rec.class+'"><div class="rec-title">📌 今日操作建議</div><div class="rec-action">'+rec.action+'</div><div class="rec-detail">'+rec.detail+'</div></div>';
-    
-    // 預警框
-    if (highZoneWeak) html += '<div class="alert-box alert-orange"><h4 style="color:#ff9800;">⚠️ 高檔轉弱預警</h4><p>大盤已破10均但還在20均上！84%機率10天內破20均</p></div>';
-    if (otcLeading10 || otcLeading20 || otcDiverge) html += '<div class="alert-box alert-yellow"><h4 style="color:#ffc107;">🔮 OTC領先訊號</h4><p>'+(otcLeading10?'OTC已破10均(大盤沒破) ':'')+(otcLeading20?'OTC已破20均(大盤沒破) ':'')+(otcDiverge?'OTC收黑大盤收紅':'')+'</p></div>';
-    
-    html += '<div class="score-display">'+
-        '<div class="score-item"><div class="score-value" style="color:'+(overheatScore>=4?'#ff6b6b':'#feca57')+'">'+overheatScore+'</div><div class="score-label">過熱/8</div></div>'+
-        '<div class="score-item"><div class="score-value" style="color:'+(ma10Score>=3?'#ff6b6b':ma10Score>=1?'#feca57':'#48dbfb')+'">'+ma10Score+'</div><div class="score-label">10均預警</div></div>'+
-        '<div class="score-item"><div class="score-value" style="color:'+(otcScore>=4?'#ff6b6b':otcScore>=2?'#feca57':'#48dbfb')+'">'+otcScore+'</div><div class="score-label">OTC領先</div></div>'+
-        '<div class="score-item"><div class="score-value" style="color:'+(shortScore>=14?'#ff0000':shortScore>=8?'#ff6b6b':'#48dbfb')+'">'+shortScore+'</div><div class="score-label">空方總分</div></div>'+
-        '<div class="score-item"><div class="score-value">'+totalTriggered+'</div><div class="score-label">觸發數</div></div>'+
-        '<div class="score-item"><div class="score-value" style="color:'+(winRate>=48?'#ff6b6b':'#feca57')+'">'+winRate+'%</div><div class="score-label">歷史跌率</div></div></div>';
-    
-    // 三指數價格卡
-    html += '<div class="grid">'+
-        '<div class="card"><div class="card-title">📊 加權指數</div><div class="price-box"><div class="price-main">'+d.txClose.toLocaleString()+'</div><div class="price-change '+(d.txRet>=0?'up':'down')+'">'+(d.txRet>=0?'▲':'▼')+Math.abs(d.txRet).toFixed(2)+'%</div></div>'+renderMA(d.txClose, d.txMa5, d.txMa10, d.txMa20, d.txMa60)+'</div>'+
-        '<div class="card"><div class="card-title">📈 OTC櫃買</div><div class="price-box"><div class="price-main">'+d.otcClose.toFixed(2)+'</div><div class="price-change '+(d.otcRet>=0?'up':'down')+'">'+(d.otcRet>=0?'▲':'▼')+Math.abs(d.otcRet).toFixed(2)+'%</div></div>'+renderMA(d.otcClose, d.otcMa5, d.otcMa10, d.otcMa20, d.otcMa60)+'</div>'+
-        '<div class="card"><div class="card-title">🏭 台積電</div><div class="price-box"><div class="price-main">'+d.tsmcClose.toLocaleString()+'</div><div class="price-change '+(d.tsmcRet>=0?'up':'down')+'">'+(d.tsmcRet>=0?'▲':'▼')+Math.abs(d.tsmcRet).toFixed(2)+'%</div></div>'+renderMA(d.tsmcClose, d.tsmcMa5, d.tsmcMa10, d.tsmcMa20, d.tsmcMa60)+'</div></div>';
-    
-    // 指標卡片
-    html += '<div class="grid-2 grid">'+
-        '<div class="card"><div class="card-title">📐 10日均線預警 ('+ma10Score+'分)</div>'+renderInd(indicators.ma10)+'</div>'+
-        '<div class="card"><div class="card-title">🔮 OTC領先指標 ('+otcScore+'分)</div>'+renderInd(indicators.otc)+'</div></div>';
-    
-    html += '<div class="grid-2 grid">'+
-        '<div class="card"><div class="card-title">🌡️ 過熱指標 ('+overheatScore+'/8)</div>'+renderInd(indicators.overheat)+'</div>'+
-        '<div class="card"><div class="card-title">📈 價格訊號 ('+priceScore+'分)</div>'+renderInd(indicators.price)+'</div></div>';
-    
-    html += '<div class="grid-2 grid">'+
-        '<div class="card"><div class="card-title">💰 籌碼面 ('+chipScore+'分)</div>'+renderInd(indicators.chip)+'</div>'+
-        '<div class="card"><div class="card-title">🏭 台積電 ('+tsmcScore+'分)</div>'+renderInd(indicators.tsmc)+'</div></div>';
-    
-    // 金字塔策略
-    html += '<div class="card"><div class="card-title">📋 金字塔做空策略</div><table class="action-table"><tr><th>階段</th><th>條件</th><th>部位</th><th>停損</th><th>狀態</th></tr>'+
-        '<tr class="action-row '+(rec.level==='wait'||rec.level==='watch'?'current':'')+'"><td>觀察</td><td>過熱≥3 或 10均/OTC訊號出現</td><td>0%</td><td>-</td><td>'+(overheatScore>=3||ma10Score>=1||otcScore>=2?'✓':'-')+'</td></tr>'+
-        '<tr class="action-row '+(rec.level==='prepare'?'current':'')+'"><td>準備</td><td>過熱≥4 或 OTC領先破10均</td><td>0%</td><td>-</td><td>'+(overheatScore>=4||otcLeading10?'✓':'-')+'</td></tr>'+
-        '<tr class="action-row '+(rec.level==='trial'?'current':'')+'"><td>試單</td><td>破10均 + 空方≥5</td><td>15%</td><td>10均+2%</td><td>'+(txBelow10&&shortScore>=5?'✓':'-')+'</td></tr>'+
-        '<tr class="action-row '+(rec.level==='build'?'current':'')+'"><td>建倉</td><td>破20均 + 空方≥8</td><td>30%</td><td>20均+2%</td><td>'+(txBelow20&&shortScore>=8?'✓':'-')+'</td></tr>'+
-        '<tr class="action-row '+(rec.level==='add'?'current':'')+'"><td>加碼</td><td>破60均 + 空方≥10</td><td>50%</td><td>60均+2%</td><td>'+(txBelow60&&shortScore>=10?'✓':'-')+'</td></tr>'+
-        '<tr class="action-row '+(rec.level==='heavy'?'current':'')+'"><td>重壓</td><td>破60均 + 台積破60均 + 空方≥14</td><td>80%</td><td>高點+1%</td><td>'+(txBelow60&&tsmcBelow60&&shortScore>=14?'✓':'-')+'</td></tr></table></div>';
-    
-    // 走勢圖
-    html += '<div class="card"><div class="card-title">📈 近期走勢 (含10/20日均線)</div><div class="chart-container"><canvas id="priceChart"></canvas></div></div>';
-    
-    document.getElementById('mainContent').innerHTML = html;
-    
-    // 繪製圖表
-    const ctx = document.getElementById('priceChart').getContext('2d');
-    const last30 = processed.slice(-30);
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: last30.map(d => d.date.slice(5)),
-            datasets: [
-                { label: '加權', data: last30.map(d => d.txClose), borderColor: '#48dbfb', fill: false, tension: 0.3, yAxisID: 'y' },
-                { label: 'OTC', data: last30.map(d => d.otcClose), borderColor: '#feca57', fill: false, tension: 0.3, yAxisID: 'y1' },
-                { label: '10均', data: last30.map(d => d.txMa10), borderColor: '#a55eea', borderDash: [3,3], fill: false, pointRadius: 0, yAxisID: 'y' },
-                { label: '20均', data: last30.map(d => d.txMa20), borderColor: '#ff6b6b', borderDash: [5,5], fill: false, pointRadius: 0, yAxisID: 'y' }
-            ]
-        },
-        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { labels: { color: '#888', font: { size: 9 } } } },
-            scales: { x: { ticks: { color: '#666', font: { size: 8 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                y: { type: 'linear', position: 'left', ticks: { color: '#48dbfb', font: { size: 8 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                y1: { type: 'linear', position: 'right', ticks: { color: '#feca57', font: { size: 8 } }, grid: { drawOnChartArea: false } }
-            }
+const d = processed[processed.length - 1];
+document.getElementById(‘dataDate’).textContent = d.date;
+
+```
+const txBelow5 = d.txClose < d.txMa5, txBelow10 = d.txClose < d.txMa10, txBelow20 = d.txClose < d.txMa20, txBelow60 = d.txClose < d.txMa60;
+const otcBelow10 = d.otcClose < d.otcMa10, otcBelow20 = d.otcClose < d.otcMa20, otcBelow60 = d.otcClose < d.otcMa60;
+const tsmcBelow20 = d.tsmcClose < d.tsmcMa20, tsmcBelow60 = d.tsmcClose < d.tsmcMa60;
+const allBelow10 = txBelow10 && otcBelow10 && d.tsmcClose < d.tsmcMa10;
+const allBelow60 = txBelow60 && tsmcBelow60;
+
+let marginPhase = 1;
+if (d.txRet > 0 && d.marginChg > 0) marginPhase = 1;
+else if (d.txRet < 0 && d.marginChg > 0) marginPhase = 2;
+else if (d.txRet < 0 && d.marginChg < 0) marginPhase = 3;
+else if (d.txRet > 0 && d.marginChg < 0) marginPhase = 4;
+
+const bestShortSignal = d.tx10dRet < -3 && d.margin10dChg > 2;
+
+const indicators = {
+    overheat: [
+        { name: 'RSI > 70', value: d.txRsi.toFixed(1), check: d.txRsi > 70, weight: 1 },
+        { name: '乖離率 > 3%', value: d.txBias20.toFixed(2)+'%', check: d.txBias20 > 3, weight: 1 },
+        { name: '乖離率 > 5%', value: d.txBias20.toFixed(2)+'%', check: d.txBias20 > 5, weight: 1 },
+        { name: '60日漲 > 15%', value: d.gain60.toFixed(1)+'%', check: d.gain60 > 15, weight: 1 },
+        { name: '接近52週高', value: d.distHigh.toFixed(1)+'%', check: d.distHigh > -3, weight: 1 },
+    ],
+    margin: [
+        { name: '融資10日增>3%', value: d.margin10dChg.toFixed(2)+'%', check: d.margin10dChg > 3, weight: 1 },
+        { name: '融資10日增>5%', value: d.margin10dChg.toFixed(2)+'%', check: d.margin10dChg > 5, weight: 2 },
+        { name: '融資連增≥10天', value: d.marginUpDays+'天', check: d.marginUpDays >= 10, weight: 2 },
+        { name: '⭐指數跌+融資增', value: d.tx10dRet.toFixed(1)+'%', check: bestShortSignal, weight: 4 },
+        { name: 'OTC融資更熱', value: (d.otcMargin10dChg-d.margin10dChg).toFixed(1)+'%', check: d.otcMargin10dChg > d.margin10dChg + 2, weight: 1 },
+        { name: '階段2(跌+融增)', value: '階段'+marginPhase, check: marginPhase === 2, weight: 2 },
+    ],
+    future: [
+        { name: '外資期貨5日減>5K', value: (d.foreignOI5dChg/1000).toFixed(1)+'K', check: d.foreignOI5dChg < -5000, weight: 1 },
+        { name: '外資期貨5日減>10K', value: (d.foreignOI5dChg/1000).toFixed(1)+'K', check: d.foreignOI5dChg < -10000, weight: 2 },
+        { name: '外資期貨5日減>15K', value: (d.foreignOI5dChg/1000).toFixed(1)+'K', check: d.foreignOI5dChg < -15000, weight: 3 },
+        { name: '三大法人淨空>5K', value: (d.instOI/1000).toFixed(1)+'K', check: d.instOI < -5000, weight: 1 },
+        { name: '三大法人淨空>10K', value: (d.instOI/1000).toFixed(1)+'K', check: d.instOI < -10000, weight: 2 },
+        { name: '外資期貨淨空>3萬', value: (d.foreignOI/1000).toFixed(1)+'K', check: d.foreignOI < -30000, weight: 1 },
+        { name: 'VIX > 25 (反向)', value: d.vix.toFixed(2), check: d.vix > 25, weight: -1 },
+    ],
+    ma10: [
+        { name: '大盤破10均', value: txBelow10 ? '是' : '否', check: txBelow10, weight: 1 },
+        { name: '破10均在20均上', value: txBelow10 && !txBelow20 ? '是' : '否', check: txBelow10 && !txBelow20, weight: 2 },
+        { name: 'OTC破10均(大盤沒破)', value: otcBelow10 && !txBelow10 ? '是' : '否', check: otcBelow10 && !txBelow10, weight: 2 },
+        { name: '三指數同步破10均', value: allBelow10 ? '是' : '否', check: allBelow10, weight: 1 },
+    ],
+    price: [
+        { name: '收黑K', value: d.txRet.toFixed(2)+'%', check: d.txRet < 0, weight: 1 },
+        { name: '大黑K (>1%)', value: d.txRet.toFixed(2)+'%', check: d.txRet < -1, weight: 2 },
+        { name: '跌破20日均', value: txBelow20 ? '是' : '否', check: txBelow20, weight: 2 },
+        { name: '跌破60日均', value: txBelow60 ? '是' : '否', check: txBelow60, weight: 3 },
+        { name: '連跌≥2天', value: d.txDownDays+'天', check: d.txDownDays >= 2, weight: 1 },
+    ],
+    chip: [
+        { name: '外資賣超', value: (d.foreign/1e8).toFixed(1)+'億', check: d.foreign < 0, weight: 2 },
+        { name: '外資連賣≥3天', value: d.foreignSellDays+'天', check: d.foreignSellDays >= 3, weight: 3 },
+        { name: '外資連賣≥5天', value: d.foreignSellDays+'天', check: d.foreignSellDays >= 5, weight: 4 },
+        { name: '投信賣超', value: (d.trust/1e8).toFixed(1)+'億', check: d.trust < 0, weight: 1 },
+    ],
+    tsmc: [
+        { name: '台積收黑', value: d.tsmcRet.toFixed(2)+'%', check: d.tsmcRet < 0, weight: 1 },
+        { name: '台積跌>1%', value: d.tsmcRet.toFixed(2)+'%', check: d.tsmcRet < -1, weight: 2 },
+        { name: '台積破20均', value: tsmcBelow20 ? '是' : '否', check: tsmcBelow20, weight: 2 },
+        { name: '台積+大盤同破60均', value: allBelow60 ? '是' : '否', check: allBelow60, weight: 3 },
+    ],
+    otc: [
+        { name: 'OTC破20均(大盤沒破)', value: otcBelow20 && !txBelow20 ? '是' : '否', check: otcBelow20 && !txBelow20, weight: 2 },
+        { name: 'OTC黑/大盤紅', value: d.otcRet < 0 && d.txRet > 0 ? '是' : '否', check: d.otcRet < 0 && d.txRet > 0, weight: 2 },
+        { name: 'OTC 5日弱>2%', value: d.otcTxGap5.toFixed(2)+'%', check: d.otcTxGap5 < -2, weight: 2 },
+    ],
+};
+
+let overheatScore = indicators.overheat.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let marginScore = indicators.margin.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let futureScore = indicators.future.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let ma10Score = indicators.ma10.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let priceScore = indicators.price.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let chipScore = indicators.chip.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let tsmcScore = indicators.tsmc.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let otcScore = indicators.otc.filter(i => i.check).reduce((s,i) => s + i.weight, 0);
+let shortScore = marginScore + futureScore + ma10Score + priceScore + chipScore + tsmcScore + otcScore;
+let totalTriggered = Object.values(indicators).flat().filter(i => i.check).length;
+
+function getWinRate(score, hasSignal) { 
+    if (hasSignal) return 60.7;
+    if (score >= 20) return 52; 
+    if (score >= 15) return 49; 
+    if (score >= 10) return 47; 
+    return 45; 
+}
+let winRate = getWinRate(shortScore, bestShortSignal);
+
+function getRecommendation() {
+    if (bestShortSignal) return { action: '🚨 最強做空訊號', detail: '指數跌+融資增背離！歷史10日跌率60.7%<br><b>積極做空，部位50%</b>', class: 'rec-heavy', level: 'heavy' };
+    if (allBelow60 && shortScore >= 14) return { action: '🔥 強力做空', detail: '大盤+台積均破60均，空方'+shortScore+'分<br><b>部位80%</b>', class: 'rec-heavy', level: 'heavy' };
+    if (txBelow60 && shortScore >= 10) return { action: '📉 加碼做空', detail: '大盤破60均，空方'+shortScore+'分<br><b>部位50%</b>', class: 'rec-add', level: 'add' };
+    if (txBelow20 && shortScore >= 8) return { action: '📊 建倉做空', detail: '大盤破20均，空方'+shortScore+'分<br><b>部位30%</b>', class: 'rec-build', level: 'build' };
+    if (txBelow10 && shortScore >= 5) return { action: '🎯 試單做空', detail: '大盤破10均，空方'+shortScore+'分<br><b>部位15%</b>', class: 'rec-trial', level: 'trial' };
+    if ((overheatScore >= 3 || marginScore >= 4 || futureScore >= 3) && shortScore >= 3) return { action: '⚡ 準備做空', detail: '過熱'+overheatScore+'，融資'+marginScore+'，期貨'+futureScore+'<br><b>等待破均線</b>', class: 'rec-prepare', level: 'prepare' };
+    if (overheatScore >= 2 || marginPhase === 2 || futureScore >= 2) return { action: '👀 密切觀察', detail: '有轉弱跡象，持續觀察', class: 'rec-watch', level: 'watch' };
+    return { action: '⏳ 等待時機', detail: '無明顯做空訊號', class: 'rec-wait', level: 'wait' };
+}
+let rec = getRecommendation();
+
+function renderInd(list) {
+    return list.map(ind => '<div class="indicator-item '+(ind.check?'triggered':'')+'"><span class="ind-name">'+ind.name+'</span><span class="ind-value">'+ind.value+'</span><span class="ind-weight">'+(ind.check?(ind.weight>0?'+':'')+ind.weight:'')+'</span><span class="ind-status">'+(ind.check?'🔴':'⚪')+'</span></div>').join('');
+}
+
+function renderMA(close, ma5, ma10, ma20, ma60) {
+    let items = [];
+    if (ma5) items.push({v:ma5,l:'5日',a:close>ma5});
+    if (ma10) items.push({v:ma10,l:'10日',a:close>ma10});
+    if (ma20) items.push({v:ma20,l:'20日',a:close>ma20});
+    if (ma60) items.push({v:ma60,l:'60日',a:close>ma60});
+    return '<div class="ma-grid">'+items.map(m=>'<div class="ma-item '+(m.a?'above':'below')+'"><div class="value">'+m.v.toFixed(0)+'</div><div class="label">'+m.l+'</div></div>').join('')+'</div>';
+}
+
+let html = '<div class="recommendation-box '+rec.class+'"><div class="rec-title">📌 今日操作建議</div><div class="rec-action">'+rec.action+'</div><div class="rec-detail">'+rec.detail+'</div></div>';
+
+if (bestShortSignal) html += '<div class="alert-box alert-red"><h4 style="color:#ff4444;">🚨 最強做空訊號觸發！</h4><p>指數10日跌'+d.tx10dRet.toFixed(1)+'% + 融資10日增'+d.margin10dChg.toFixed(1)+'% → 歷史10日跌率60.7%</p></div>';
+if (txBelow10 && !txBelow20) html += '<div class="alert-box alert-orange"><h4 style="color:#ff9800;">⚠️ 高檔轉弱</h4><p>破10均但還在20均上，84%機率10天內破20均</p></div>';
+if (marginPhase === 2) html += '<div class="alert-box alert-yellow"><h4 style="color:#ffc107;">⚠️ 融資階段2</h4><p>指數跌+融資增，散戶不認輸</p></div>';
+if (d.foreignOI5dChg < -10000) html += '<div class="alert-box alert-yellow"><h4 style="color:#ffc107;">⚠️ 外資期貨減碼</h4><p>5日減碼'+(Math.abs(d.foreignOI5dChg)/1000).toFixed(1)+'K口，歷史10日跌率48%</p></div>';
+
+html += '<div class="score-display">'+
+    '<div class="score-item"><div class="score-value" style="color:'+(overheatScore>=3?'#ff6b6b':'#feca57')+'">'+overheatScore+'</div><div class="score-label">過熱</div></div>'+
+    '<div class="score-item"><div class="score-value" style="color:'+(marginScore>=5?'#ff0000':marginScore>=3?'#ff6b6b':'#48dbfb')+'">'+marginScore+'</div><div class="score-label">融資</div></div>'+
+    '<div class="score-item"><div class="score-value" style="color:'+(futureScore>=4?'#ff6b6b':futureScore>=2?'#feca57':'#48dbfb')+'">'+futureScore+'</div><div class="score-label">期貨</div></div>'+
+    '<div class="score-item"><div class="score-value" style="color:'+(shortScore>=15?'#ff0000':shortScore>=10?'#ff6b6b':'#48dbfb')+'">'+shortScore+'</div><div class="score-label">空方總分</div></div>'+
+    '<div class="score-item"><div class="score-value">'+totalTriggered+'</div><div class="score-label">觸發數</div></div>'+
+    '<div class="score-item"><div class="score-value" style="color:'+(winRate>=55?'#ff0000':winRate>=48?'#ff6b6b':'#feca57')+'">'+winRate.toFixed(1)+'%</div><div class="score-label">歷史跌率</div></div></div>';
+
+// 期貨籌碼
+let foreignView = d.foreignOI > 10000 ? 'bullish' : d.foreignOI < -10000 ? 'bearish' : '';
+let instView = d.instOI > 5000 ? 'bullish' : d.instOI < -5000 ? 'bearish' : '';
+html += '<div class="card"><div class="card-title">📊 期貨籌碼</div>'+
+    '<div class="future-stats">'+
+    '<div class="future-stat"><div class="stat-value">'+d.vix.toFixed(2)+'</div><div class="stat-label">VIX恐慌</div></div>'+
+    '<div class="future-stat '+foreignView+'"><div class="stat-value">'+(d.foreignOI/1000).toFixed(1)+'K</div><div class="stat-label">外資淨口</div></div>'+
+    '<div class="future-stat '+instView+'"><div class="stat-value">'+(d.instOI/1000).toFixed(1)+'K</div><div class="stat-label">法人淨口</div></div>'+
+    '<div class="future-stat '+(d.foreignOI5dChg<-5000?'bearish':'')+'"><div class="stat-value">'+(d.foreignOI5dChg/1000).toFixed(1)+'K</div><div class="stat-label">外資5日變化</div></div>'+
+    '</div></div>';
+
+// 融資四階段
+html += '<div class="card"><div class="card-title">💰 融資循環</div>'+
+    '<div class="phase-box">'+
+    '<div class="phase-item '+(marginPhase===1?'active':'')+'"><div class="phase-name">階段1</div><div class="phase-label">最佳</div><div class="phase-hint">漲+融增</div></div>'+
+    '<div class="phase-item '+(marginPhase===2?'active':'')+'"><div class="phase-name">階段2</div><div class="phase-label" style="color:#ff6b6b;">起跌⚠️</div><div class="phase-hint">跌+融增</div></div>'+
+    '<div class="phase-item '+(marginPhase===3?'active':'')+'"><div class="phase-name">階段3</div><div class="phase-label">最殺</div><div class="phase-hint">跌+融減</div></div>'+
+    '<div class="phase-item '+(marginPhase===4?'active':'')+'"><div class="phase-name">階段4</div><div class="phase-label">反彈</div><div class="phase-hint">漲+融減</div></div></div>'+
+    '<div class="margin-stats">'+
+    '<div class="margin-stat"><div class="stat-value">'+(d.margin/1e8).toFixed(0)+'億</div><div class="stat-label">加權融資</div></div>'+
+    '<div class="margin-stat"><div class="stat-value" style="color:'+(d.margin10dChg>3?'#ff6b6b':'#26de81')+'">'+(d.margin10dChg>0?'+':'')+d.margin10dChg.toFixed(1)+'%</div><div class="stat-label">10日變化</div></div></div></div>';
+
+// 三指數
+html += '<div class="grid-3 grid">'+
+    '<div class="card"><div class="card-title">加權指數</div><div class="price-box"><div class="price-main">'+d.txClose.toLocaleString()+'</div><div class="price-change '+(d.txRet>=0?'up':'down')+'">'+(d.txRet>=0?'▲':'▼')+Math.abs(d.txRet).toFixed(2)+'%</div></div>'+renderMA(d.txClose, d.txMa5, d.txMa10, d.txMa20, d.txMa60)+'</div>'+
+    '<div class="card"><div class="card-title">OTC櫃買</div><div class="price-box"><div class="price-main">'+d.otcClose.toFixed(2)+'</div><div class="price-change '+(d.otcRet>=0?'up':'down')+'">'+(d.otcRet>=0?'▲':'▼')+Math.abs(d.otcRet).toFixed(2)+'%</div></div>'+renderMA(d.otcClose, null, d.otcMa10, d.otcMa20, d.otcMa60)+'</div>'+
+    '<div class="card"><div class="card-title">台積電</div><div class="price-box"><div class="price-main">'+d.tsmcClose.toLocaleString()+'</div><div class="price-change '+(d.tsmcRet>=0?'up':'down')+'">'+(d.tsmcRet>=0?'▲':'▼')+Math.abs(d.tsmcRet).toFixed(2)+'%</div></div>'+renderMA(d.tsmcClose, null, d.tsmcMa10, d.tsmcMa20, d.tsmcMa60)+'</div></div>';
+
+// 指標卡片
+html += '<div class="grid-2 grid">'+
+    '<div class="card"><div class="card-title">💰 融資訊號<span class="card-score">'+marginScore+'</span></div>'+renderInd(indicators.margin)+'</div>'+
+    '<div class="card"><div class="card-title">📈 期貨籌碼<span class="card-score">'+futureScore+'</span></div>'+renderInd(indicators.future)+'</div></div>';
+
+html += '<div class="grid-2 grid">'+
+    '<div class="card"><div class="card-title">🌡️ 過熱指標<span class="card-score">'+overheatScore+'</span></div>'+renderInd(indicators.overheat)+'</div>'+
+    '<div class="card"><div class="card-title">📐 10均預警<span class="card-score">'+ma10Score+'</span></div>'+renderInd(indicators.ma10)+'</div></div>';
+
+html += '<div class="grid-2 grid">'+
+    '<div class="card"><div class="card-title">📉 價格訊號<span class="card-score">'+priceScore+'</span></div>'+renderInd(indicators.price)+'</div>'+
+    '<div class="card"><div class="card-title">💼 現貨籌碼<span class="card-score">'+chipScore+'</span></div>'+renderInd(indicators.chip)+'</div></div>';
+
+html += '<div class="grid-2 grid">'+
+    '<div class="card"><div class="card-title">🏭 台積電<span class="card-score">'+tsmcScore+'</span></div>'+renderInd(indicators.tsmc)+'</div>'+
+    '<div class="card"><div class="card-title">🔮 OTC領先<span class="card-score">'+otcScore+'</span></div>'+renderInd(indicators.otc)+'</div></div>';
+
+// 策略表
+html += '<div class="card"><div class="card-title">📋 金字塔策略</div><table class="action-table"><tr><th>階段</th><th>條件</th><th>部位</th><th>狀態</th></tr>'+
+    '<tr class="action-row '+(rec.level==='watch'||rec.level==='wait'?'current':'')+'"><td>觀察</td><td>過熱/融資/期貨訊號</td><td>0%</td><td>'+(overheatScore>=2||marginScore>=2||futureScore>=2?'✓':'-')+'</td></tr>'+
+    '<tr class="action-row '+(rec.level==='prepare'?'current':'')+'"><td>準備</td><td>訊號累積≥3</td><td>0%</td><td>'+(overheatScore>=3||marginScore>=4||futureScore>=3?'✓':'-')+'</td></tr>'+
+    '<tr class="action-row '+(rec.level==='trial'?'current':'')+'"><td>試單</td><td>破10均+空方≥5</td><td>15%</td><td>'+(txBelow10&&shortScore>=5?'✓':'-')+'</td></tr>'+
+    '<tr class="action-row '+(rec.level==='build'?'current':'')+'"><td>建倉</td><td>破20均+空方≥8</td><td>30%</td><td>'+(txBelow20&&shortScore>=8?'✓':'-')+'</td></tr>'+
+    '<tr class="action-row '+(rec.level==='add'?'current':'')+'"><td>加碼</td><td>破60均+空方≥10</td><td>50%</td><td>'+(txBelow60&&shortScore>=10?'✓':'-')+'</td></tr>'+
+    '<tr class="action-row '+(rec.level==='heavy'?'current':'')+'"><td>重壓</td><td>最強訊號/雙破60均</td><td>80%</td><td>'+(bestShortSignal||allBelow60?'✓':'-')+'</td></tr></table></div>';
+
+// 圖表
+html += '<div class="card"><div class="card-title">📈 近30日走勢</div><div class="chart-container"><canvas id="priceChart"></canvas></div></div>';
+
+document.getElementById('mainContent').innerHTML = html;
+
+const ctx = document.getElementById('priceChart').getContext('2d');
+const last30 = processed.slice(-30);
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: last30.map(d => d.date.slice(5)),
+        datasets: [
+            { label: '加權', data: last30.map(d => d.txClose), borderColor: '#48dbfb', fill: false, tension: 0.3, yAxisID: 'y', pointRadius: 1 },
+            { label: 'OTC', data: last30.map(d => d.otcClose), borderColor: '#feca57', fill: false, tension: 0.3, yAxisID: 'y1', pointRadius: 1 },
+            { label: '20均', data: last30.map(d => d.txMa20), borderColor: '#ff6b6b', borderDash: [4,4], fill: false, pointRadius: 0, yAxisID: 'y' }
+        ]
+    },
+    options: { 
+        responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#888', font: { size: 8 } } } },
+        scales: { 
+            x: { ticks: { color: '#666', font: { size: 7 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { type: 'linear', position: 'left', ticks: { color: '#48dbfb', font: { size: 7 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y1: { type: 'linear', position: 'right', ticks: { color: '#feca57', font: { size: 7 } }, grid: { drawOnChartArea: false } }
         }
-    });
+    }
+});
+```
+
 }
 </script>
+
 </body>
 </html>
